@@ -48,6 +48,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
         fun frozen(draft: TransactionDraft): TransactionDraft =
             if (draft is TransactionDraft.Expense) draft.copy(splits = draft.splits.toList()) else draft
         val action = when (val a = command.action) {
+            is LedgerAction.Setup -> a.copy(newAccounts = a.newAccounts.toList(), existingOpenings = a.existingOpenings.toList())
             is LedgerAction.Schedule -> a.copy(operation = when (val operation = a.operation) {
                 is ScheduleAction.Define -> operation.copy(rule = operation.rule.copy(template = frozen(operation.rule.template),
                     recurrence = operation.rule.recurrence.copy(exceptions = operation.rule.recurrence.exceptions.toSet())))
@@ -75,6 +76,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
             check(book.revision == input.expectedRevision) { "Stale financial state. Refresh and review before resubmitting" }
             val next = Math.addExact(book.revision, 1)
             val primary = when (action) {
+                is LedgerAction.Setup -> input.bookId
                 is LedgerAction.Schedule -> when (val operation = action.operation) {
                     is ScheduleAction.Define -> operation.rule.id
                     is ScheduleAction.Stop -> operation.ruleId
@@ -117,6 +119,25 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
             }
             dao.insertAudit(AuditEntity(input.id, auditAction, explanation, clock.millis()))
             when (action) {
+                is LedgerAction.Setup -> {
+                    val current = snapshotInside(input.bookId)
+                    require(current.history.isEmpty() && db.planningDao().profile(input.bookId)?.setupComplete != true) { "Existing financial books must be kept; configure their profile without resetting balances" }
+                    require(action.profile.setupComplete && action.newAccounts.size + action.existingOpenings.size in 1..1000) { "Complete setup with 1..1000 explicitly declared account balances" }
+                    require(action.newAccounts.map { it.accountId }.toSet().size == action.newAccounts.size &&
+                        action.existingOpenings.map { it.accountId }.toSet().size == action.existingOpenings.size) { "Duplicate account in setup" }
+                    require(current.accounts.map { it.id }.toSet() == action.existingOpenings.map { it.accountId }.toSet()) { "Declare every existing metadata-only account balance explicitly" }
+                    require(action.newAccounts.none { added -> current.accounts.any { it.id == added.accountId } }) { "Existing account identity must be retained" }
+                    // Persist the selected zone before validating actual opening dates; the transaction hides intermediate setup state.
+                    planning.apply(input, action.profile.copy(setupComplete = false), current)
+                    for (declaration in action.existingOpenings) {
+                        val existing = current.accounts.single { it.id == declaration.accountId }
+                        if (existing.archived) check(dao.archive(input.bookId, existing.id, false) == 1)
+                        opening(input, existing.id, declaration.balance, declaration.date)
+                        if (existing.archived) check(dao.archive(input.bookId, existing.id, true) == 1)
+                    }
+                    action.newAccounts.forEach { createAccount(input, it) }
+                    planning.apply(input, action.profile, snapshotInside(input.bookId))
+                }
                 is LedgerAction.Schedule -> when (val operation = action.operation) {
                     is ScheduleAction.Define -> schedules.define(input, operation.rule)
                     is ScheduleAction.Stop -> schedules.stop(input, operation)
@@ -142,14 +163,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
                 }
                 is LedgerAction.Plan -> planning.apply(input, action.operation, snapshotInside(input.bookId))
                 is LedgerAction.CreateAccount -> {
-                    identifier(action.accountId); label(action.name); currency(action.opening); date(input.bookId, action.date)
-                    dao.insertAccount(AccountEntity(action.accountId, action.name, "INR", action.kind.name, false, input.bookId))
-                    dao.insertLedgerAccount(LedgerAccountEntity(action.accountId, input.bookId, action.accountId, "ASSET", action.name))
-                    if (action.opening.minor != 0L) {
-                        val equity = control(input.bookId, LedgerRole.EQUITY, "Opening equity")
-                        postJournal(input, id(), "OPENING", action.date, Clearing.CLEARED, "Opening balance", "", null,
-                            listOf(Posting(action.accountId, action.opening), Posting(equity, -action.opening)))
-                    }
+                    createAccount(input, action)
                 }
                 is LedgerAction.Post -> postDraft(input, primary, action.draft)
                 is LedgerAction.Archive -> {
@@ -209,6 +223,22 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
     }
 
     private fun CommandEntity.receipt() = CommandReceipt(id, primaryId, secondaryId, revision)
+
+    private suspend fun createAccount(command: LedgerCommand, action: LedgerAction.CreateAccount) {
+        identifier(action.accountId); label(action.name); currency(action.opening); date(command.bookId, action.date)
+        dao.insertAccount(AccountEntity(action.accountId, action.name, "INR", action.kind.name, false, command.bookId))
+        dao.insertLedgerAccount(LedgerAccountEntity(action.accountId, command.bookId, action.accountId, "ASSET", action.name))
+        opening(command, action.accountId, action.opening, action.date)
+    }
+
+    private suspend fun opening(command: LedgerCommand, accountId: String, balance: Money, at: LocalDate) {
+        currency(balance); date(command.bookId, at)
+        if (balance.minor != 0L) {
+            val equity = control(command.bookId, LedgerRole.EQUITY, "Opening equity")
+            postJournal(command, id(), "OPENING", at, Clearing.CLEARED, "Opening balance", "", null,
+                listOf(Posting(accountId, balance), Posting(equity, -balance)))
+        }
+    }
 
     private suspend fun account(book: String, id: String, allowArchived: Boolean = false): AccountEntity {
         identifier(id)

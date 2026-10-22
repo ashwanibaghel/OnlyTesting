@@ -22,7 +22,8 @@ These are implementation gates, not claims that the features are already complet
 - Budgets/reserve/goal persistence gate: 24 additional Room tests, all original tests retained, 158 tests total; full local lint/debug gate passed. See [MILESTONE_3_BACKEND.md](MILESTONE_3_BACKEND.md) for financial policies and migration/enforcement details.
 - [Draft PR #2](https://github.com/ashwanibaghel/OnlyTesting/pull/2) is stacked on PR #1. Neither is merged. The draft does not claim Phase 1 completion.
 - `259e23a`: independent clean local run and [CI run 39863038386](https://github.com/ashwanibaghel/OnlyTesting/actions/runs/39863038386) both verify 161 tests, zero failures/errors/skips, lint zero errors/35 warnings and debug/schema gates. CI report ZIP was checksum-verified and XML parsed; no Android-host Windows file-lock block occurred in that run.
-- Scheduled-plan/contribution/projection backend core: 214 passing tests and full local gate. See [MILESTONE_4_BACKEND.md](MILESTONE_4_BACKEND.md). Remaining backend gates and final consumer UI are explicitly outstanding.
+- `22efec9`: scheduled-plan/contribution/projection backend core: 214 passing tests, full local gate and [CI run 39870057528](https://github.com/ashwanibaghel/OnlyTesting/actions/runs/39870057528). Downloaded CI report SHA-256 `2a1c6c271b9dfaa9512215a4fcaac2d83d62533f7dbf7864acdb8e536caedc48` and parsed JUnit XML independently confirm 214 tests with zero failures/errors/skips. See [MILESTONE_4_BACKEND.md](MILESTONE_4_BACKEND.md). Remaining backend gates and final consumer UI are explicitly outstanding.
+- Atomic setup/current-day session APIs: 22 new native Room cases; 236 tests pass with zero failures/errors/skips, full lint/debug gate and unchanged schemas. All prior 214 test names retained. See [MILESTONE_5_BACKEND.md](MILESTONE_5_BACKEND.md).
 
 ## Design handoff
 

@@ -138,6 +138,7 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
                 ZoneId.of(action.timezone); nonnegative(action.safetyBuffer); nonnegative(action.monthlyCapacity)
                 require(action.horizonDays in 1..366) { "Obligation horizon must be 1..366 days" }
                 require(!action.setupComplete || ledger.accounts.isNotEmpty()) { "Create an account before completing setup" }
+                require(action.setupComplete || dao.profile(book)?.setupComplete != true) { "Completed financial setup cannot be reset" }
                 val profile = FinancialProfileEntity(book, action.timezone, action.safetyBuffer.minor, action.monthlyCapacity.minor, action.horizonDays, action.setupComplete)
                 if (dao.profile(book) == null) dao.insertProfile(profile) else check(dao.updateProfile(profile) == 1)
             }
