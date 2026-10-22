@@ -13,7 +13,7 @@ object LedgerSchema {
 
     val migration1To2 = object : Migration(1, 2) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.query("SELECT COUNT(*) FROM accounts WHERE currencyCode != 'INR' OR kind NOT IN ('BANK','CASH','INVESTMENT') OR trim(id) = '' OR trim(name) = '' OR archived NOT IN (0,1)").use {
+            db.query("SELECT COUNT(*) FROM accounts WHERE currencyCode != 'INR' OR kind NOT IN ('BANK','CASH','INVESTMENT') OR trim(id) = '' OR id GLOB '*[^A-Za-z0-9_-]*' OR length(id) > 100 OR trim(name) = '' OR name != trim(name) OR length(name) > 100 OR archived NOT IN (0,1)").use {
                 check(it.moveToFirst() && it.getLong(0) == 0L) { "Legacy metadata is unsupported; migration aborted without data loss" }
             }
             db.execSQL("ALTER TABLE accounts RENAME TO accounts_v1")
@@ -89,6 +89,23 @@ object LedgerSchema {
                 OR NOT EXISTS (SELECT 1 FROM audit_events a JOIN journals j ON j.commandId = a.commandId WHERE j.id = NEW.entryId)
                 THEN RAISE(ABORT,'Journal must have balanced, bounded, audited postings') END;
             SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM postings p JOIN ledger_accounts l ON l.id = p.ledgerAccountId WHERE p.entryId = NEW.entryId AND l.role = 'ASSET') THEN RAISE(ABORT,'Journal requires an owned asset account') END;
+            SELECT CASE WHEN (SELECT kind FROM journals WHERE id = NEW.entryId) IN ('INCOME','EXPENSE') AND (
+                (SELECT COUNT(*) FROM postings p JOIN ledger_accounts l ON l.id = p.ledgerAccountId WHERE p.entryId = NEW.entryId AND l.role = 'ASSET') != 1
+                OR EXISTS (SELECT 1 FROM postings p JOIN ledger_accounts l ON l.id = p.ledgerAccountId JOIN journals j ON j.id = p.entryId WHERE p.entryId = NEW.entryId AND (
+                    (j.kind = 'INCOME' AND ((l.role = 'ASSET' AND p.minor < 0) OR (l.role != 'ASSET' AND (l.role != 'INCOME' OR p.minor > 0))))
+                    OR (j.kind = 'EXPENSE' AND ((l.role = 'ASSET' AND p.minor > 0) OR (l.role != 'ASSET' AND (l.role != 'EXPENSE' OR p.minor < 0)))))))
+                THEN RAISE(ABORT,'Invalid income or expense classification') END;
+            SELECT CASE WHEN (SELECT kind FROM journals WHERE id = NEW.entryId) = 'TRANSFER' AND (
+                (SELECT COUNT(DISTINCT p.ledgerAccountId) FROM postings p JOIN ledger_accounts l ON l.id = p.ledgerAccountId WHERE p.entryId = NEW.entryId AND l.role = 'ASSET') != 2
+                OR (SELECT COUNT(*) FROM postings p JOIN ledger_accounts l ON l.id = p.ledgerAccountId WHERE p.entryId = NEW.entryId AND l.role = 'ASSET' AND p.minor > 0) != 1
+                OR (SELECT COUNT(*) FROM postings p JOIN ledger_accounts l ON l.id = p.ledgerAccountId WHERE p.entryId = NEW.entryId AND l.role = 'ASSET' AND p.minor < 0) != 1
+                OR EXISTS (SELECT 1 FROM postings p JOIN ledger_accounts l ON l.id = p.ledgerAccountId WHERE p.entryId = NEW.entryId AND l.role != 'ASSET' AND (l.role != 'EXPENSE' OR p.minor < 0)))
+                THEN RAISE(ABORT,'Transfer requires distinct asset accounts and expense-only fees') END;
+            SELECT CASE WHEN (SELECT kind FROM journals WHERE id = NEW.entryId) IN ('OPENING','ADJUSTMENT') AND (
+                (SELECT COUNT(*) FROM postings WHERE entryId = NEW.entryId) != 2
+                OR (SELECT COUNT(*) FROM postings p JOIN ledger_accounts l ON l.id = p.ledgerAccountId WHERE p.entryId = NEW.entryId AND l.role = 'ASSET') != 1
+                OR (SELECT COUNT(*) FROM postings p JOIN ledger_accounts l ON l.id = p.ledgerAccountId WHERE p.entryId = NEW.entryId AND l.role = 'EQUITY') != 1)
+                THEN RAISE(ABORT,'Opening and adjustment require asset/equity legs') END;
             SELECT CASE WHEN (SELECT kind FROM journals WHERE id = NEW.entryId) = 'REVERSAL' AND (
                 EXISTS (SELECT ledgerAccountId, -minor, COUNT(*) FROM postings WHERE entryId = (SELECT reversalOf FROM journals WHERE id = NEW.entryId) GROUP BY ledgerAccountId, minor EXCEPT SELECT ledgerAccountId, minor, COUNT(*) FROM postings WHERE entryId = NEW.entryId GROUP BY ledgerAccountId, minor)
                 OR EXISTS (SELECT ledgerAccountId, minor, COUNT(*) FROM postings WHERE entryId = NEW.entryId GROUP BY ledgerAccountId, minor EXCEPT SELECT ledgerAccountId, -minor, COUNT(*) FROM postings WHERE entryId = (SELECT reversalOf FROM journals WHERE id = NEW.entryId) GROUP BY ledgerAccountId, minor))

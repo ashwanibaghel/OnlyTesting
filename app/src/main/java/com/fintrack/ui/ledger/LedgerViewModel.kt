@@ -50,8 +50,9 @@ class LedgerViewModel @Inject constructor(private val repository: LedgerReposito
         viewModelScope.launch {
             try {
                 repository.execute(command)
+                val snapshot = repository.snapshot()
                 retryCommand = null
-                mutable.update { it.copy(snapshot = repository.snapshot(), busy = false, review = null, savedCommandId = command.id) }
+                mutable.update { it.copy(snapshot = snapshot, busy = false, review = null, savedCommandId = command.id) }
             } catch (error: Exception) { failure(error) }
         }
     }

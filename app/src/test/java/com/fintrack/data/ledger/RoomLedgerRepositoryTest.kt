@@ -390,6 +390,20 @@ class RoomLedgerRepositoryTest {
         assertEquals(0L, count("journal_seals"))
     }
 
+    @Test fun databaseRejectsBalancedTransferDisguisedAsIncome() = scenario {
+        create(); create("cash", kind = AccountKind.CASH)
+        rejects { rawJournal(listOf("bank" to 100, "cash" to -100)) }
+        assertEquals(0L, count("journal_seals")); assertEquals(m(0), repository.snapshot().income)
+    }
+
+    @Test fun databaseRejectsInvalidLedgerRolesAndAssetOwnership() = scenario {
+        create()
+        rejects { db.ledgerDao().insertLedgerAccount(LedgerAccountEntity(uid(), DEFAULT_BOOK, null, "LIABILITY", "Unsupported debt")) }
+        rejects { db.ledgerDao().insertLedgerAccount(LedgerAccountEntity(uid(), DEFAULT_BOOK, null, "ASSET", "Missing owner")) }
+        rejects { db.ledgerDao().insertLedgerAccount(LedgerAccountEntity(uid(), DEFAULT_BOOK, "bank", "INCOME", "Invalid owned control")) }
+        assertEquals(1L, count("ledger_accounts"))
+    }
+
     private fun legacy(currency: String = "INR", withAccounts: Boolean = true) {
         db.close(); context.deleteDatabase(file)
         val source = requireNotNull(javaClass.classLoader?.getResourceAsStream("com.fintrack.data.local.FinTrackDatabase/1.json"))
