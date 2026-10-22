@@ -5,6 +5,9 @@ import com.fintrack.data.local.*
 import com.fintrack.domain.ledger.*
 import com.fintrack.domain.planning.PlanningAction
 import com.fintrack.data.planning.RoomPlanningStore
+import com.fintrack.data.schedules.RoomScheduleStore
+import com.fintrack.domain.schedules.ScheduleAction
+import java.time.YearMonth
 import com.fintrack.engine.Money
 import com.fintrack.engine.Posting
 import com.fintrack.engine.sumMoney
@@ -20,6 +23,7 @@ import kotlinx.coroutines.flow.map
 class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: Clock) : LedgerRepository {
     private val dao get() = db.ledgerDao()
     private val planning = RoomPlanningStore(db, clock)
+    private val schedules = RoomScheduleStore(db, clock)
     private fun id() = UUID.randomUUID().toString()
     private fun money(value: Long) = Money(value, INR)
     private fun identifier(value: String) { require(value.matches(Regex("[A-Za-z0-9_-]{1,100}"))) { "Invalid identifier" } }
@@ -44,6 +48,11 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
         fun frozen(draft: TransactionDraft): TransactionDraft =
             if (draft is TransactionDraft.Expense) draft.copy(splits = draft.splits.toList()) else draft
         val action = when (val a = command.action) {
+            is LedgerAction.Schedule -> a.copy(operation = when (val operation = a.operation) {
+                is ScheduleAction.Define -> operation.copy(rule = operation.rule.copy(template = frozen(operation.rule.template),
+                    recurrence = operation.rule.recurrence.copy(exceptions = operation.rule.recurrence.exceptions.toSet())))
+                else -> operation
+            })
             is LedgerAction.Plan -> a.copy(operation = when (val operation = a.operation) {
                 is PlanningAction.Move -> operation.copy(consent = operation.consent?.let { it.copy(goalImpacts = it.goalImpacts.toList()) })
                 else -> operation
@@ -66,6 +75,12 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
             check(book.revision == input.expectedRevision) { "Stale financial state. Refresh and review before resubmitting" }
             val next = Math.addExact(book.revision, 1)
             val primary = when (action) {
+                is LedgerAction.Schedule -> when (val operation = action.operation) {
+                    is ScheduleAction.Define -> operation.rule.id
+                    is ScheduleAction.Stop -> operation.ruleId
+                    is ScheduleAction.LinkExisting -> operation.journalId
+                    else -> id()
+                }
                 is LedgerAction.Plan -> when (val operation = action.operation) {
                     is PlanningAction.CreateReserve -> operation.id
                     is PlanningAction.SetBudget -> operation.id
@@ -82,14 +97,49 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
             val receipt = CommandEntity(input.id, input.bookId, hash, primary, secondary, next)
             dao.insertCommand(receipt)
             val explanation = when (action) {
+                is LedgerAction.Schedule -> when (val operation = action.operation) {
+                    is ScheduleAction.Stop -> operation.reason
+                    is ScheduleAction.Skip -> operation.reason
+                    is ScheduleAction.Reopen -> operation.reason
+                    is ScheduleAction.LinkExisting -> operation.reason
+                    else -> ""
+                }
                 is LedgerAction.Plan -> (action.operation as? PlanningAction.Move)?.reason.orEmpty()
                 is LedgerAction.Reverse -> action.reason
                 is LedgerAction.Correct -> action.reason
                 is LedgerAction.Reconcile -> action.reason
                 else -> ""
             }
-            dao.insertAudit(AuditEntity(input.id, action.javaClass.simpleName, explanation, clock.millis()))
+            val auditAction = when (action) {
+                is LedgerAction.Plan -> "Planning.${action.operation.javaClass.simpleName}"
+                is LedgerAction.Schedule -> "Schedule.${action.operation.javaClass.simpleName}"
+                else -> action.javaClass.simpleName
+            }
+            dao.insertAudit(AuditEntity(input.id, auditAction, explanation, clock.millis()))
             when (action) {
+                is LedgerAction.Schedule -> when (val operation = action.operation) {
+                    is ScheduleAction.Define -> schedules.define(input, operation.rule)
+                    is ScheduleAction.Stop -> schedules.stop(input, operation)
+                    is ScheduleAction.Skip -> schedules.skip(input, operation)
+                    is ScheduleAction.Reopen -> schedules.reopen(input, operation)
+                    is ScheduleAction.LinkExisting -> schedules.linkExisting(input, operation, snapshotInside(input.bookId))
+                    is ScheduleAction.WeeklyReview -> schedules.weeklyReview(input, operation)
+                    is ScheduleAction.Confirm -> {
+                        val draft = schedules.confirmationDraft(input, operation)
+                        postDraft(input, primary, draft)
+                        val zone = db.planningDao().profile(input.bookId)?.timezone?.let(ZoneId::of) ?: clock.zone
+                        // Late bills use the live period; early payments can consume their funded future envelope.
+                        planning.consumeDraft(input, primary, draft, YearMonth.from(maxOf(LocalDate.now(clock.withZone(zone)), operation.scheduledDate)))
+                        schedules.recordConfirmation(input, operation, primary, draft)
+                    }
+                    is ScheduleAction.Invest -> {
+                        schedules.validateInvestment(input, operation)
+                        postDraft(input, primary, operation.transfer)
+                        planning.consumeInvestment(input, primary, operation.bucketId, operation.transfer.amount, operation.transfer.date)
+                        planning.consumeDraft(input, primary, operation.transfer) // Only fee category, never principal.
+                        schedules.recordInvestment(input, operation, primary)
+                    }
+                }
                 is LedgerAction.Plan -> planning.apply(input, action.operation, snapshotInside(input.bookId))
                 is LedgerAction.CreateAccount -> {
                     identifier(action.accountId); label(action.name); currency(action.opening); date(input.bookId, action.date)
@@ -135,6 +185,23 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
             }
             // Validate all final derived positions exactly; any overflow rolls back every inserted row.
             planning.afterLedger(input, primary, secondary)
+            when (action) {
+                is LedgerAction.Reverse -> {
+                    schedules.reverseContribution(input.bookId, action.entryId, primary, action.date)
+                    schedules.resolveActualChange(input, action.entryId, primary)
+                }
+                is LedgerAction.Correct -> {
+                    schedules.reverseContribution(input.bookId, action.entryId, requireNotNull(secondary), action.replacement.date)
+                    schedules.correctedInvestment(input.bookId, action.entryId, action.replacement)?.let { corrected ->
+                        schedules.validateInvestment(input, corrected, allowArchivedReserve = true)
+                        planning.consumeCorrectedInvestment(input, primary, corrected.bucketId, corrected.transfer.amount, corrected.transfer.date)
+                        schedules.recordInvestment(input, corrected, primary)
+                    }
+                    schedules.resolveActualChange(input, action.entryId, requireNotNull(secondary), primary, action.replacement)
+                }
+                else -> Unit
+            }
+            schedules.validateContributions(input.bookId, planning.balances(input.bookId))
             snapshotInside(input.bookId)
             check(dao.advance(input.bookId, book.revision, next) == 1) { "Stale book revision" }
             receipt.receipt()

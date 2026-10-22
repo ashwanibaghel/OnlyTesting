@@ -26,6 +26,7 @@ internal interface LedgerDao {
     @Query("SELECT * FROM ledger_accounts WHERE bookId = :book") suspend fun ledgerAccounts(book: String): List<LedgerAccountEntity>
     @Query("SELECT j.* FROM journals j JOIN journal_seals s ON s.entryId = j.id WHERE j.bookId = :book ORDER BY j.effectiveDate, j.createdAt, j.id")
     suspend fun journals(book: String): List<JournalEntity>
+    @Query("SELECT * FROM journals WHERE id = :id AND bookId = :book") suspend fun journal(book: String, id: String): JournalEntity?
     @Query("SELECT p.* FROM postings p JOIN journals j ON j.id = p.entryId JOIN journal_seals s ON s.entryId = j.id WHERE j.bookId = :book")
     suspend fun postings(book: String): List<PostingEntity>
     @Query("SELECT c.* FROM clearing_events c JOIN journals j ON j.id = c.entryId WHERE j.bookId = :book")

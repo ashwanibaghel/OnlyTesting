@@ -43,7 +43,7 @@ class RoomPlanningRepositoryTest {
     private fun uid() = UUID.randomUUID().toString()
     private fun scenario(block: suspend () -> Unit) = runBlocking { block() }
     private fun open() = Room.databaseBuilder(context, FinTrackDatabase::class.java, file)
-        .addMigrations(LedgerSchema.migration1To2, PlanningSchema.migration2To3).addCallback(LedgerSchema.callback).build()
+        .addMigrations(*FinTrackMigrations.all).addCallback(LedgerSchema.callback).build()
     private fun repositories() { ledger = RoomLedgerRepository(db, clock); planning = RoomPlanningRepository(db, ledger, clock) }
     @Before fun setup() = scenario {
         context = ApplicationProvider.getApplicationContext(); file = "planning-${uid()}.db"

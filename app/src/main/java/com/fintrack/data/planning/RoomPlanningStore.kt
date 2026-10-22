@@ -4,6 +4,7 @@ import com.fintrack.data.local.*
 import com.fintrack.domain.ledger.*
 import com.fintrack.domain.planning.*
 import com.fintrack.engine.*
+import com.fintrack.data.schedules.RoomScheduleStore
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
@@ -48,12 +49,25 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
             MonthlyBudget(it.bucketId, requireNotNull(bucket.category), requireNotNull(bucket.month), m(it.limitMinor),
                 m(it.carriedMinor), policy, it.closed, budgetPosition(m(it.limitMinor), m(it.carriedMinor), spent, policy), bucket.funded)
         }
-        val goals = dao.goals(book).map { GoalPlan(it.bucketId, m(it.targetMinor), indexed.getValue(it.bucketId).funded,
+        val contributions = db.scheduleDao().contributions(book).groupBy { it.bucketId }
+        val journals = ledger.history.associateBy { it.id }
+        val funding = dao.goals(book).map {
+            val reserved = indexed.getValue(it.bucketId).funded
+            val posted = sumMoney(contributions[it.bucketId].orEmpty().map { value -> m(value.minor) }, INR)
+            val cleared = sumMoney(contributions[it.bucketId].orEmpty().filter { value -> journals[value.journalId]?.clearedDate != null }.map { value -> m(value.minor) }, INR)
+            require(posted.minor >= 0) { "Contribution reversals exceed original contributions" }
+            GoalFunding(it.bucketId, reserved, posted, cleared, reserved + posted)
+        }.associateBy { it.bucketId }
+        val goals = dao.goals(book).map { GoalPlan(it.bucketId, m(it.targetMinor), funding.getValue(it.bucketId).progress,
             LocalDate.parse(it.deadline), it.priority, m(it.monthlyMinor), it.anchorDay) }
         val reservations = reservationPosition(ledger.liquid, buckets.map { it.funded })
+        val schedules = RoomScheduleStore(db, clock)
+        val scheduled = schedules.read(book, asOf, asOf.plusDays(profile.obligationHorizonDays.toLong()), buckets)
+        val obligations = schedules.obligations(scheduled.occurrences, buckets, asOf)
         return PlanningSnapshot(ledger, asOf, profile, buckets, budgets, goals,
             assessGoals(goals, asOf, profile.monthlyCapacity), reservations,
-            safeToSpend(ledger.liquid, reservations.reserved, m(0), profile.safetyBuffer))
+            safeToSpend(ledger.liquid, reservations.reserved, scheduled.uncoveredObligations, profile.safetyBuffer),
+            funding.values.toList(), obligations, scheduled.uncoveredObligations)
     }
 
     fun diversion(snapshot: PlanningSnapshot, sourceId: String, destinationId: String?, amount: Money): DiversionReview {
@@ -73,9 +87,15 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
                 before.requiredMonthly, updated.requiredMonthly, before.projectedCompletion, updated.projectedCompletion)
         }
         val reservedAfter = if (destinationId == null) snapshot.reservations.reserved - amount else snapshot.reservations.reserved
+        val changedFunding = snapshot.buckets.associate { it.id to when (it.id) {
+            sourceId -> it.funded - amount
+            destinationId -> it.funded + amount
+            else -> it.funded
+        } }
+        val uncoveredAfter = sumMoney(coverObligations(snapshot.obligations, changedFunding, INR).map { it.uncovered }, INR)
         return DiversionReview(DiversionConsent(snapshot.ledger.revision, snapshot.asOf, sourceId, destinationId, amount, impacts),
             source.name, source.funded - amount, source.protected,
-            safeToSpend(snapshot.ledger.liquid, reservedAfter, m(0), snapshot.profile.safetyBuffer))
+            safeToSpend(snapshot.ledger.liquid, reservedAfter, uncoveredAfter, snapshot.profile.safetyBuffer))
     }
 
     suspend fun apply(command: LedgerCommand, action: PlanningAction, ledger: LedgerSnapshot) {
@@ -178,14 +198,14 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
         validate(command.bookId)
     }
 
-    private suspend fun consumeDraft(command: LedgerCommand, journal: String, draft: TransactionDraft) {
+    internal suspend fun consumeDraft(command: LedgerCommand, journal: String, draft: TransactionDraft, fundingMonth: YearMonth = YearMonth.from(draft.date)) {
         val splits = when (draft) {
             is TransactionDraft.Expense -> draft.splits
             is TransactionDraft.Transfer -> if (draft.fee.minor > 0) listOf(Split("Transfer fees", draft.fee)) else emptyList()
             else -> emptyList()
         }.groupBy { it.category }.mapValues { (_, parts) -> sumMoney(parts.map { it.amount }, INR) }
         for ((category, amount) in splits) {
-            val bucket = dao.buckets(command.bookId).firstOrNull { it.category == category && it.month == YearMonth.from(draft.date).toString() && !it.archived } ?: continue
+            val bucket = dao.buckets(command.bookId).firstOrNull { it.category == category && it.month == fundingMonth.toString() && !it.archived } ?: continue
             val funded = balances(command.bookId)[bucket.id] ?: m(0)
             val consumed = m(minOf(funded.minor, amount.minor))
             if (consumed.minor > 0) allocation(command, "CONSUME", draft.date, "Funded category spending", bucket.id, null, consumed, journal)
@@ -194,16 +214,31 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
 
     private suspend fun refund(command: LedgerCommand, originalId: String, reversalId: String, date: LocalDate) {
         val allLegs = dao.legs(command.bookId)
-        for (entry in dao.linked(command.bookId, originalId).filter { it.kind == "CONSUME" }) {
+        for (entry in dao.linked(command.bookId, originalId).filter { it.kind in listOf("CONSUME", "INVEST_CONSUME") }) {
             for (leg in allLegs.filter { it.entryId == entry.id && it.bucketId != null && it.minor < 0 }) {
                 val bucket = dao.buckets(command.bookId).single { it.id == leg.bucketId }
                 val budget = dao.budgets(command.bookId).firstOrNull { it.bucketId == bucket.id }
                 // Closed-period refunds become actual unassigned money; no old reservation is resurrected.
-                if (!bucket.archived && budget?.closed != true && bucket.month == YearMonth.from(date).toString()) {
+                val openCurrentOrFuture = bucket.month?.let(YearMonth::parse)?.let { it >= YearMonth.from(date) } == true
+                if (!bucket.archived && budget?.closed != true && (openCurrentOrFuture || entry.kind == "INVEST_CONSUME")) {
                     allocation(command, "REFUND", date, "Restore original funded spending", null, bucket.id, -m(leg.minor), reversalId)
                 }
             }
         }
+    }
+
+    internal suspend fun consumeInvestment(command: LedgerCommand, journal: String, bucketId: String, amount: Money, date: LocalDate) {
+        val balance = balances(command.bookId)[bucketId] ?: m(0)
+        require(amount.currency == INR && amount.minor > 0 && amount.minor <= balance.minor) { "Contribution exceeds funded investment reserve" }
+        allocation(command, "INVEST_CONSUME", date, "Move funded ownership into tracked investment contribution", bucketId, null, amount, journal)
+        validate(command.bookId)
+    }
+
+    internal suspend fun consumeCorrectedInvestment(command: LedgerCommand, journal: String, bucketId: String, amount: Money, date: LocalDate) {
+        val available = balances(command.bookId)[bucketId] ?: m(0)
+        val consumed = m(minOf(available.minor, amount.minor))
+        if (consumed.minor > 0) allocation(command, "INVEST_CONSUME", date, "Funded portion of corrected actual contribution", bucketId, null, consumed, journal)
+        validate(command.bookId)
     }
 
     private suspend fun allocation(command: LedgerCommand, kind: String, date: LocalDate, reason: String,

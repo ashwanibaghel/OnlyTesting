@@ -10,6 +10,7 @@ object LedgerSchema {
         override fun onCreate(db: SupportSQLiteDatabase) {
             installTriggers(db)
             PlanningSchema.installTriggers(db)
+            ScheduleSchema.installTriggers(db)
         }
         override fun onOpen(db: SupportSQLiteDatabase) {
             // Configure Android's entire connection pool, not just Room's opening connection.
@@ -19,6 +20,7 @@ object LedgerSchema {
             }
             installTriggers(db)
             PlanningSchema.installTriggers(db)
+            ScheduleSchema.installTriggers(db)
         }
     }
 

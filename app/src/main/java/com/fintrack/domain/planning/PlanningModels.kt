@@ -14,9 +14,12 @@ data class MonthlyBudget(val bucketId: String, val category: String, val month: 
     val position: BudgetPosition, val funded: Money)
 data class FinancialProfile(val timezone: String, val safetyBuffer: Money, val monthlyCapacity: Money,
     val obligationHorizonDays: Int, val setupComplete: Boolean)
+data class GoalFunding(val bucketId: String, val reserved: Money, val postedContributions: Money,
+    val clearedContributions: Money, val progress: Money)
 data class PlanningSnapshot(val ledger: LedgerSnapshot, val asOf: LocalDate, val profile: FinancialProfile,
     val buckets: List<ReserveBucket>, val budgets: List<MonthlyBudget>, val goals: List<GoalPlan>,
-    val goalCollisions: GoalCollisions, val reservations: ReservationPosition, val safeToSpend: SafeToSpend)
+    val goalCollisions: GoalCollisions, val reservations: ReservationPosition, val safeToSpend: SafeToSpend,
+    val goalFunding: List<GoalFunding>, val obligations: List<Obligation>, val uncoveredObligations: Money)
 data class GoalDiversionImpact(val id: String, val lostFunded: Money, val requiredBefore: Money?,
     val requiredAfter: Money?, val completionBefore: LocalDate?, val completionAfter: LocalDate?)
 data class DiversionConsent(val revision: Long, val asOf: LocalDate, val sourceId: String,

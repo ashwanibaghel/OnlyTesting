@@ -9,10 +9,13 @@ import com.fintrack.data.local.AccountDao
 import com.fintrack.data.local.FinTrackDatabase
 import com.fintrack.data.local.LedgerSchema
 import com.fintrack.data.local.PlanningSchema
+import com.fintrack.data.local.FinTrackMigrations
 import com.fintrack.data.ledger.RoomLedgerRepository
 import com.fintrack.domain.ledger.LedgerRepository
 import com.fintrack.domain.planning.PlanningRepository
 import com.fintrack.data.planning.RoomPlanningRepository
+import com.fintrack.domain.schedules.ScheduleRepository
+import com.fintrack.data.schedules.RoomScheduleRepository
 import java.time.Clock
 import dagger.Module
 import dagger.Provides
@@ -30,7 +33,7 @@ object StorageModule {
     @Singleton
     fun database(@ApplicationContext context: Context): FinTrackDatabase =
         Room.databaseBuilder(context, FinTrackDatabase::class.java, "fintrack.db")
-            .addMigrations(LedgerSchema.migration1To2, PlanningSchema.migration2To3)
+            .addMigrations(*FinTrackMigrations.all)
             .addCallback(LedgerSchema.callback)
             .build()
 
@@ -42,6 +45,11 @@ object StorageModule {
     @Singleton
     fun planning(database: FinTrackDatabase, ledger: LedgerRepository): PlanningRepository =
         RoomPlanningRepository(database, ledger, Clock.systemDefaultZone())
+
+    @Provides
+    @Singleton
+    fun schedules(database: FinTrackDatabase, ledger: LedgerRepository): ScheduleRepository =
+        RoomScheduleRepository(database, ledger, Clock.systemDefaultZone())
 
     @Provides
     fun accounts(database: FinTrackDatabase): AccountDao = database.accountDao()

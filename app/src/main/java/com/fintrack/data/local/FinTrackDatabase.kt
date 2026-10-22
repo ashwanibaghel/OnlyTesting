@@ -8,9 +8,12 @@ import androidx.room.RoomDatabase
     ClearingEntity::class, AuditEntity::class, ReconciliationEntity::class,
     FinancialProfileEntity::class, ReserveBucketEntity::class, MonthlyBudgetEntity::class,
     FinancialGoalEntity::class, AllocationJournalEntity::class, AllocationLegEntity::class,
-    AllocationSealEntity::class], version = 3, exportSchema = true)
+    AllocationSealEntity::class, ScheduledRuleEntity::class, ScheduleExceptionEntity::class,
+    ScheduleOccurrenceEntity::class, OccurrenceResolutionEntity::class,
+    InvestmentContributionEntity::class, WeeklyReviewEntity::class], version = 4, exportSchema = true)
 abstract class FinTrackDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
     internal abstract fun ledgerDao(): LedgerDao
     internal abstract fun planningDao(): PlanningDao
+    internal abstract fun scheduleDao(): ScheduleDao
 }
