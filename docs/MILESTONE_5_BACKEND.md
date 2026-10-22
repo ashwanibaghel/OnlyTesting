@@ -26,6 +26,8 @@ The full Windows/JDK 17 gate cleaned both test outputs and passed: **236 tests**
 
 No database version or historical schema changes are needed for these APIs. No physical-device or emulator execution is claimed.
 
+Commit `9bbc2b136d70b209084dc3710a280cdccb330ca0` also passed [CI run 39872118649](https://github.com/ashwanibaghel/OnlyTesting/actions/runs/39872118649). Its downloaded report artifact has SHA-256 `3e88fb80ea611a263017c8c4a4b7af669bad3141709158965969d00d0602dd1f`; independent JUnit XML parsing confirms all 236 tests, zero failures/errors/skips. CI retains the debug APK as build evidence, not a partial-screen acceptance request.
+
 ## Remaining work
 
 Further backend work includes investment return attribution, schedule replacement/unlinking, reports and large-history handling, encrypted backup/validated restore, privacy/reminders and reusable ViewModel workflow controllers. Final consumer UI remains on hold pending explicit review of high-fidelity visual mockups. Engineering reference specifications and unreviewed mockup files do not constitute visual approval.

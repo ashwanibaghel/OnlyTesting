@@ -44,24 +44,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
     }
 
     override suspend fun execute(command: LedgerCommand): CommandReceipt {
-        // Detach caller-owned split lists before fingerprinting or suspending.
-        fun frozen(draft: TransactionDraft): TransactionDraft =
-            if (draft is TransactionDraft.Expense) draft.copy(splits = draft.splits.toList()) else draft
-        val action = when (val a = command.action) {
-            is LedgerAction.Setup -> a.copy(newAccounts = a.newAccounts.toList(), existingOpenings = a.existingOpenings.toList())
-            is LedgerAction.Schedule -> a.copy(operation = when (val operation = a.operation) {
-                is ScheduleAction.Define -> operation.copy(rule = operation.rule.copy(template = frozen(operation.rule.template),
-                    recurrence = operation.rule.recurrence.copy(exceptions = operation.rule.recurrence.exceptions.toSet())))
-                else -> operation
-            })
-            is LedgerAction.Plan -> a.copy(operation = when (val operation = a.operation) {
-                is PlanningAction.Move -> operation.copy(consent = operation.consent?.let { it.copy(goalImpacts = it.goalImpacts.toList()) })
-                else -> operation
-            })
-            is LedgerAction.Post -> a.copy(draft = frozen(a.draft))
-            is LedgerAction.Correct -> a.copy(replacement = frozen(a.replacement))
-            else -> a
-        }
+        val action = command.action.detached()
         val input = command.copy(action = action)
         identifier(input.id); identifier(input.bookId)
         require(input.expectedRevision >= 0) { "Invalid expected revision" }
