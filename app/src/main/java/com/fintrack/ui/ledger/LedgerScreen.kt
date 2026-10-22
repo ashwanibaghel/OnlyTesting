@@ -25,7 +25,7 @@ private fun Choice(label: String, choices: List<Pair<String, String>>, selected:
             Text("$label: ${choices.firstOrNull { it.first == selected }?.second ?: "Choose"}")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            choices.forEach { (id, name) -> DropdownMenuItem(text = { Text(name) }, onClick = { onSelect(id); expanded = false }) }
+            choices.forEach { (id, name) -> DropdownMenuItem(text = { Text(name) }, enabled = enabled, onClick = { onSelect(id); expanded = false }) }
         }
     }
 }
@@ -67,6 +67,7 @@ fun LedgerScreen(viewModel: LedgerViewModel) {
         if (mode == "Transfer") destination else "", amount, fee, category, splits, memo, effective, clearing, formNonce) {
         UUID.randomUUID().toString()
     }
+    val reconciliationInputs = ReconciliationInputs(selected, effective, amount, BalanceBasis.valueOf(basis))
     val newAccountId = rememberSaveable(formKey) { UUID.randomUUID().toString() }
 
     Scaffold { padding ->
@@ -86,7 +87,9 @@ fun LedgerScreen(viewModel: LedgerViewModel) {
             }
             if (state.error != null) item {
                 Text(state.error.orEmpty(), color = MaterialTheme.colorScheme.error)
-                OutlinedButton(onClick = viewModel::retry, enabled = enabled) { Text("Retry same submission") }
+                state.retryCommand?.let { failed ->
+                    OutlinedButton(onClick = { viewModel.retry(failed.id) }, enabled = enabled) { Text("Retry same submission") }
+                }
             }
             if (state.busy) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
             item { Text("Accounts", style = MaterialTheme.typography.titleLarge) }
@@ -104,40 +107,41 @@ fun LedgerScreen(viewModel: LedgerViewModel) {
                     }
                 }
             }
-            item { Choice("Operation", modes.map { it to it }, mode, enabled) { mode = it } }
-            item { Input("Effective / statement date (YYYY-MM-DD)", effective, enabled) { effective = it } }
+            item { Choice("Operation", modes.map { it to it }, mode, enabled) { viewModel.inputsChanged(); mode = it } }
+            item { Input("Effective / statement date (YYYY-MM-DD)", effective, enabled) { viewModel.inputsChanged(); effective = it } }
             if (mode == "Create account") {
-                item { Input("Account name", name, enabled) { name = it } }
-                item { Choice("Type", AccountKind.entries.map { it.name to it.name.lowercase() }, kind, enabled) { kind = it } }
-                item { Input("Opening balance (INR, e.g. 20000.00; zero allowed)", amount, enabled) { amount = it } }
-            } else item { Choice("Account", active.map { it.id to it.name }, selected, enabled) { accountId = it } }
+                item { Input("Account name", name, enabled) { viewModel.inputsChanged(); name = it } }
+                item { Choice("Type", AccountKind.entries.map { it.name to it.name.lowercase() }, kind, enabled) { viewModel.inputsChanged(); kind = it } }
+                item { Input("Opening balance (INR, e.g. 20000.00; zero allowed)", amount, enabled) { viewModel.inputsChanged(); amount = it } }
+            } else item { Choice("Account", active.map { it.id to it.name }, selected, enabled) { viewModel.inputsChanged(); accountId = it } }
             if (mode != "Create account") item {
-                Input(if (mode == "Reconcile") "Statement balance (INR)" else "Amount (INR, two decimal digits maximum)", amount, enabled) { amount = it }
+                Input(if (mode == "Reconcile") "Statement balance (INR)" else "Amount (INR, two decimal digits maximum)", amount, enabled) { viewModel.inputsChanged(); amount = it }
             }
-            if (mode == "Income" || mode == "Expense") item { Input("Category", category, enabled) { category = it } }
-            if (mode == "Expense") item { Input("Optional splits: one Category=amount per line; must total amount", splits, enabled) { splits = it } }
+            if (mode == "Income" || mode == "Expense") item { Input("Category", category, enabled) { viewModel.inputsChanged(); category = it } }
+            if (mode == "Expense") item { Input("Optional splits: one Category=amount per line; must total amount", splits, enabled) { viewModel.inputsChanged(); splits = it } }
             if (mode == "Transfer") {
-                item { Choice("Destination", active.filter { it.id != selected }.map { it.id to it.name }, destination, enabled) { destinationId = it } }
-                item { Input("Transfer fee (INR)", fee, enabled) { fee = it } }
+                item { Choice("Destination", active.filter { it.id != selected }.map { it.id to it.name }, destination, enabled) { viewModel.inputsChanged(); destinationId = it } }
+                item { Input("Transfer fee (INR)", fee, enabled) { viewModel.inputsChanged(); fee = it } }
             }
             if (mode in listOf("Income", "Expense", "Transfer")) {
-                item { Choice("Status", Clearing.entries.map { it.name to it.name.lowercase() }, clearing, enabled) { clearing = it } }
-                item { Input("Memo (optional)", memo, enabled) { memo = it } }
+                item { Choice("Status", Clearing.entries.map { it.name to it.name.lowercase() }, clearing, enabled) { viewModel.inputsChanged(); clearing = it } }
+                item { Input("Memo (optional)", memo, enabled) { viewModel.inputsChanged(); memo = it } }
             }
-            item { Input("Reason (required for reversal / reconciliation)", reason, enabled) { reason = it } }
+            item { Input("Reason (required for reversal / reconciliation)", reason, enabled) { viewModel.inputsChanged(invalidateReview = false); reason = it } }
             if (mode == "Reconcile") {
-                item { Choice("Statement basis", BalanceBasis.entries.map { it.name to it.name.lowercase() }, basis, enabled) { basis = it } }
-                item { Button(enabled = enabled, onClick = { viewModel.review(selected, effective, amount, BalanceBasis.valueOf(basis)) }) { Text("Preview statement difference") } }
-                state.review?.let { review -> item {
+                item { Choice("Statement basis", BalanceBasis.entries.map { it.name to it.name.lowercase() }, basis, enabled) { viewModel.inputsChanged(); basis = it } }
+                item { Button(enabled = enabled, onClick = { viewModel.review(reconciliationInputs) }) { Text("Preview statement difference") } }
+                state.review?.takeIf { it.inputs == reconciliationInputs }?.let { reviewed -> item {
+                    val review = reviewed.preview
                     val accountName = snapshot?.accounts?.firstOrNull { it.id == review.accountId }?.name.orEmpty()
                     Text("$accountName · ${review.date} · ${review.basis.name.lowercase()}")
                     Text("Statement: ${review.statement.display()}\nLedger: ${review.ledger.display()}\nPending delta: ${review.pending.display()}\nDifference: ${review.difference.display()}")
-                    Button(enabled = enabled && reason.isNotBlank(), onClick = { viewModel.applyReview(reason) }) {
+                    Button(enabled = enabled && reason.isNotBlank(), onClick = { viewModel.applyReview(reviewed.id, reconciliationInputs, reason) }) {
                         Text(if (review.difference.minor == 0L) "Record matched statement" else "Record explicit equity adjustment")
                     }
                 } }
             } else item {
-                Button(enabled = enabled && state.savedCommandId != formKey, onClick = {
+                Button(enabled = enabled && formKey !in state.savedCommandIds, onClick = {
                     viewModel.submit(key = formKey) {
                         val date = LocalDate.parse(effective)
                         val value = Money.parse(amount, INR)
@@ -156,9 +160,9 @@ fun LedgerScreen(viewModel: LedgerViewModel) {
                         }
                     }
                 }) { Text(if (mode == "Create account") "Create account" else "Record ${mode.lowercase()}") }
-                if (state.savedCommandId == formKey) {
+                if (formKey in state.savedCommandIds) {
                     Text("Saved. Edit the form or start a new entry to record another transaction.")
-                    OutlinedButton(enabled = enabled, onClick = { formNonce++ }) { Text("Start a new entry") }
+                    OutlinedButton(enabled = enabled, onClick = { viewModel.inputsChanged(); formNonce++ }) { Text("Start a new entry") }
                 }
             }
             item { HorizontalDivider(); Text("Transaction history", style = MaterialTheme.typography.titleLarge) }

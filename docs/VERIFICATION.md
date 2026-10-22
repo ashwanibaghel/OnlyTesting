@@ -1,5 +1,39 @@
 # Milestone 2 verification record
 
+## PR #1 review fixes — 2026-10-23
+
+Review base: `df2791073410621762a69338766b2077c60ef62f`, on the existing `milestone-2-accounts-ledger` branch. PR #1 remains open; no merge or milestone 3 work is part of these fixes. The original implementation evidence below is historical. The exact pushed fix SHA and latest CI run are recorded in [PR #1](https://github.com/ashwanibaghel/OnlyTesting/pull/1); [branch CI runs](https://github.com/ashwanibaghel/OnlyTesting/actions/workflows/android-ci.yml?query=branch%3Amilestone-2-accounts-ledger) expose each run's SHA and downloadable reports.
+
+Retry state now contains the exact failed command. Retry callbacks must identify that command; a callback from an earlier failure cannot execute a later command. Input/operation changes, local validation failures and preview failures discard earlier retries. Unchanged failed form resubmission preserves the original command ID, payload and expected revision, including after an acknowledgement or snapshot refresh failure.
+
+Reconciliation review binds an immutable input tuple (account, raw statement date, raw balance, basis) to the repository preview and revision. Edit callbacks invalidate the review synchronously; Apply checks the review ID, current inputs and revision and consumes the review before launching. A late preview result cannot restore a review invalidated by an edit. Book revision changes invalidate existing previews. Failed Apply can retry only its original command.
+
+Additional demonstrated issues fixed: successful form IDs remain remembered after unrelated commands, and an observation failure cannot release the busy lock of a running submission. Dropdown items also respect disabled state while an operation runs. Existing reversal/clearing constraints and repository idempotency remain unchanged.
+
+| Local verification | Actual result |
+| --- | --- |
+| Finance engine JVM tests | 52 passed |
+| Room/NATIVE SQLite integration tests | 43 passed: all original 41 plus two ViewModel-to-Room lost-acknowledgement retry cases |
+| Deterministic ViewModel regression tests | 19 passed |
+| Total | **114 passed**, 0 failures, 0 errors, 0 skipped; original 93 retained |
+| Lint | Passed, 0 errors, 35 existing warnings |
+| Debug APK | Assembly passed; 10,778,457 bytes; SHA-256 `573afb7273766e7870f8d3861905ca71c407d0760ac1bf2bfe3e48c088d92fae` (local APK, not CI ZIP) |
+| Schema history | Generated v1 and v2 JSON byte-identical to the reviewed commit; no schema, migration or accounting repository changes |
+| Whitespace | `git diff --check` passed |
+| Physical device / emulator / Compose interaction | Not performed; automated Room tests run on host Robolectric API 28 with NATIVE SQLite |
+
+The 19 ViewModel cases cover invalid financial input after failure, failed/invalid reconciliation previews, stale retry callbacks, edit/operation invalidation, all four reviewed field changes, changed-back fields, late previews, revision invalidation, exact Apply payload/revision, repeat clicks, retry after lost acknowledgement or refresh failure, saved-form retention and observer errors during submission. The two new Room cases commit income or reconciliation, deliberately lose the acknowledgement, retry the exact command and assert unchanged snapshots and exactly one journal/two postings, with one reconciliation record where applicable.
+
+Both test tasks were cleaned before the final full local run, which completed with `BUILD SUCCESSFUL in 4m 56s`:
+
+```powershell
+$env:JAVA_HOME = 'C:\Users\ashwa\.jdks\temurin-17.0.13'
+$env:ANDROID_HOME = 'C:\Users\ashwa\AppData\Local\Android\Sdk'
+.\gradlew.bat --max-workers=2 :finance-engine:cleanTest :app:cleanTestDebugUnitTest :finance-engine:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --console=plain
+```
+
+## Original implementation verification (historical)
+
 Date: 2026-10-23 (Asia/Kolkata). This section verifies the accounts/ledger implementation; the historical foundation baseline is separate below.
 
 ## Source and review

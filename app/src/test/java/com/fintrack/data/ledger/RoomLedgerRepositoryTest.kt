@@ -5,11 +5,14 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.room.withTransaction
+import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
 import com.fintrack.data.local.*
 import com.fintrack.domain.ledger.*
 import com.fintrack.engine.CurrencySpec
 import com.fintrack.engine.Money
+import com.fintrack.ui.ledger.LedgerViewModel
+import com.fintrack.ui.ledger.ReconciliationInputs
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -17,6 +20,8 @@ import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
@@ -73,6 +78,69 @@ class RoomLedgerRepositoryTest {
         check(it.moveToFirst()); it.getLong(0)
     }
     private suspend fun balance(id: String = "bank") = repository.snapshot().accounts.single { it.id == id }
+
+    /** Simulates a committed transaction whose acknowledgement never reached the screen. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun lostAcknowledgementScenario(reconcile: Boolean) {
+        create()
+        val attempts = mutableListOf<LedgerCommand>()
+        var loseAcknowledgement = true
+        val unreliable = object : LedgerRepository by repository {
+            override suspend fun execute(command: LedgerCommand): CommandReceipt {
+                attempts += command
+                val receipt = repository.execute(command)
+                if (loseAcknowledgement) {
+                    loseAcknowledgement = false
+                    error("Acknowledgement lost after commit")
+                }
+                return receipt
+            }
+        }
+        val store = ViewModelStore()
+        Dispatchers.setMain(Dispatchers.Unconfined)
+        try {
+            val vm = LedgerViewModel(unreliable)
+            store.put("ledger", vm)
+            withTimeout(10_000) { vm.state.first { it.snapshot != null } }
+            val inputs = ReconciliationInputs("bank", today.toString(), "1.00", BalanceBasis.CLEARED)
+            if (reconcile) {
+                vm.review(inputs)
+                val reviewed = withTimeout(10_000) { vm.state.first { !it.busy && it.review != null } }.review!!
+                vm.applyReview(reviewed.id, inputs, "Checked statement")
+                vm.applyReview(reviewed.id, inputs, "Checked statement")
+            } else vm.submit("income-ui") { income() }
+            val failed = withTimeout(10_000) { vm.state.first { !it.busy && it.retryCommand != null } }.retryCommand!!
+            val committed = repository.snapshot()
+            vm.retry(failed.id)
+            vm.retry(failed.id)
+            withTimeout(10_000) { vm.state.first { !it.busy && it.error == null } }
+            vm.retry(failed.id)
+            assertEquals(listOf(failed, failed), attempts)
+            assertEquals(committed, repository.snapshot())
+            assertEquals(1, committed.history.size)
+            assertEquals(m(100), committed.accounts.single().posted)
+            assertEquals(2L, count("commands")) // Account creation plus exactly one financial command.
+            assertEquals(1L, count("journals"))
+            assertEquals(2L, count("postings"))
+            assertEquals(if (reconcile) 1L else 0L, count("reconciliations"))
+            if (reconcile) {
+                assertEquals(m(0), committed.income)
+                assertEquals(LedgerAction.Reconcile("bank", today, m(100), BalanceBasis.CLEARED,
+                    "Checked statement"), failed.action)
+            } else assertEquals(m(100), committed.income)
+        } finally {
+            store.clear()
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun viewModelIncomeRetryAfterCommittedFailureDoesNotDuplicatePostings() = scenario {
+        lostAcknowledgementScenario(reconcile = false)
+    }
+
+    @Test fun viewModelReconciliationRetryAfterCommittedFailureDoesNotDuplicatePostings() = scenario {
+        lostAcknowledgementScenario(reconcile = true)
+    }
 
     @Test fun acceptanceScenarioPersistsAndReversesWithoutInflatedReports() = scenario {
         create("bank", 2_000_000, name = "SBI")
