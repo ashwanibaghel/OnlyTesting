@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinTrack Mobile High-Fidelity UI Studio (Visual QA)</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .tnum {
+      font-variant-numeric: tabular-nums;
+    }
+    .mobile-scroll::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .mobile-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .mobile-scroll::-webkit-scrollbar-thumb {
+      background: rgba(150, 150, 150, 0.25);
+      border-radius: 4px;
+    }
+    .theme-transition {
+      transition: background-color 0.2s cubic-bezier(0.2, 0, 0, 1),
+                  color 0.2s cubic-bezier(0.2, 0, 0, 1),
+                  border-color 0.2s cubic-bezier(0.2, 0, 0, 1),
+                  width 0.25s ease,
+                  height 0.25s ease;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-3 md:p-6 flex flex-col items-center justify-start">
+
+  <!-- Top App Navigation & Studio Bar -->
+  <header class="max-w-6xl w-full mb-5 flex flex-col md:flex-row items-center justify-between gap-4 border-b border-slate-800 pb-4">
+    <div class="flex items-center gap-3 w-full md:w-auto">
+      <div class="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-900/40 shrink-0">
+        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-lg font-bold tracking-tight text-white">FinTrack UI Studio</h1>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">Phase 1 High-Fidelity</span>
+        </div>
+        <p class="text-xs text-slate-400">Native Android • Material 3 • Double-Entry • INR (Paise Exact)</p>
+      </div>
+    </div>
+
+    <!-- Viewport & Theme Controls -->
+    <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-end">
+      
+      <!-- Responsive Android Device Screen Switcher -->
+      <div class="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-1 text-xs">
+        <span class="text-slate-500 text-[10px] font-semibold px-2 uppercase">Screen:</span>
+        <button id="btnSize360" onclick="setDeviceSize(360, 780, '360dp')" class="px-2.5 py-1 rounded font-medium text-slate-400 hover:text-white transition">360dp</button>
+        <button id="btnSize390" onclick="setDeviceSize(390, 844, '390dp')" class="px-2.5 py-1 rounded font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition">390dp</button>
+        <button id="btnSize412" onclick="setDeviceSize(412, 892, '412dp')" class="px-2.5 py-1 rounded font-medium text-slate-400 hover:text-white transition">412dp</button>
+      </div>
+
+      <!-- Theme Switcher -->
+      <div class="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-1 text-xs">
+        <button id="btnLightMode" onclick="setTheme('light')" class="px-3 py-1 rounded font-medium transition flex items-center gap-1.5 text-slate-400 hover:text-slate-200">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          Light
+        </button>
+        <button id="btnDarkMode" onclick="setTheme('dark')" class="px-3 py-1 rounded font-medium transition flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          Dark
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Screen Navigation Strip -->
+  <nav class="max-w-6xl w-full mb-5 overflow-x-auto pb-1 flex items-center gap-2 text-xs mobile-scroll">
+    <span class="text-slate-500 uppercase tracking-wider text-[10px] font-bold mr-1 shrink-0">Primary:</span>
+    <button onclick="switchScreen('home')" id="pill-home" class="screen-pill shrink-0 px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 font-bold shadow-sm">Home</button>
+    <button onclick="switchScreen('activity')" id="pill-activity" class="screen-pill shrink-0 px-3 py-1.5 rounded-full bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800 font-medium">Activity</button>
+    <button onclick="switchScreen('plan')" id="pill-plan" class="screen-pill shrink-0 px-3 py-1.5 rounded-full bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800 font-medium">Plan</button>
+    <button onclick="switchScreen('goals')" id="pill-goals" class="screen-pill shrink-0 px-3 py-1.5 rounded-full bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800 font-medium">Goals</button>
+    <button onclick="switchScreen('insights')" id="pill-insights" class="screen-pill shrink-0 px-3 py-1.5 rounded-full bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800 font-medium">Insights</button>
+
+    <div class="h-4 w-px bg-slate-800 mx-2 shrink-0"></div>
+    <span class="text-slate-500 uppercase tracking-wider text-[10px] font-bold mr-1 shrink-0">Sub-Flows & Modals:</span>
+    <button onclick="switchScreen('onboarding')" id="pill-onboarding" class="screen-pill shrink-0 px-3 py-1.5 rounded-full bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800 font-medium">Onboarding</button>
+    <button onclick="switchScreen('accounts')" id="pill-accounts" class="screen-pill shrink-0 px-3 py-1.5 rounded-full bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800 font-medium">Accounts</button>
+    <button onclick="switchScreen('add_tx')" id="pill-add_tx" class="screen-pill shrink-0 px-3 py-1.5 rounded-full bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800 font-medium">+ Add Entry</button>
+    <button onclick="switchScreen('diversion')" id="pill-diversion" class="screen-pill shrink-0 px-3 py-1.5 rounded-full bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800 font-medium">Diversion Warning</button>
+    <button onclick="switchScreen('reconcile')" id="pill-reconcile" class="screen-pill shrink-0 px-3 py-1.5 rounded-full bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800 font-medium">Reconciliation</button>
+  </nav>
+
+  <!-- Main Showcase Container -->
+  <main class="w-full max-w-6xl flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8">
+
+    <!-- Android Device Wrapper -->
+    <div id="deviceFrame" class="relative shrink-0 rounded-[50px] p-3 bg-slate-900 border-4 border-slate-700 shadow-2xl shadow-emerald-950/40 ring-1 ring-slate-800 theme-transition" style="width: 390px; height: 844px;">
+      
+      <!-- Inner Screen Viewport -->
+      <div id="deviceScreen" class="relative w-full h-full rounded-[40px] overflow-hidden flex flex-col bg-[#111415] text-[#E1E3E4] theme-transition select-none">
+        
+        <!-- Android Status Bar -->
+        <div class="w-full h-11 pt-2 px-6 flex items-center justify-between text-xs font-semibold z-30 opacity-90">
+          <span class="tnum">9:41</span>
+          <!-- Camera Punch-Hole -->
+          <div class="w-3.5 h-3.5 rounded-full bg-black mx-auto"></div>
+          <div class="flex items-center gap-1.5 text-xs">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L12 22l7.03-4.39C20.26 16.07 21 14.12 21 12c0-4.97-4.03-9-9-9z"/></svg>
+            <span class="text-[10px] font-bold">5G</span>
+            <div class="w-5 h-2.5 border border-current rounded-sm p-0.5 flex items-center">
+              <div class="h-full w-4/5 bg-current rounded-2xs"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scrollable Screen Content -->
+        <div id="screenViewport" class="flex-1 overflow-y-auto mobile-scroll pb-24 relative">
+          <!-- Dynamically Injected Screen Content -->
+        </div>
+
+        <!-- Floating Action Button -->
+        <div id="fabContainer" class="absolute bottom-24 right-5 z-20">
+          <button onclick="switchScreen('add_tx')" class="w-14 h-14 rounded-2xl bg-[#48D597] text-[#003828] flex items-center justify-center shadow-lg shadow-black/40 hover:scale-105 active:scale-95 transition">
+            <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- 5-Destination Bottom Navigation Bar -->
+        <nav id="navBar" class="absolute bottom-0 inset-x-0 h-20 bg-[#262C2E]/95 backdrop-blur-md border-t border-white/5 px-2 flex items-center justify-around z-20 theme-transition">
+          <!-- Home -->
+          <button onclick="switchScreen('home')" class="nav-item flex flex-col items-center gap-1 flex-1 py-1 text-emerald-400">
+            <div class="w-12 h-7 rounded-full bg-emerald-500/20 flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+            </div>
+            <span class="text-[11px] font-medium tracking-tight">Home</span>
+          </button>
+          <!-- Activity -->
+          <button onclick="switchScreen('activity')" class="nav-item flex flex-col items-center gap-1 flex-1 py-1 text-slate-400 hover:text-slate-200">
+            <div class="w-12 h-7 rounded-full flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </div>
+            <span class="text-[11px] font-medium tracking-tight">Activity</span>
+          </button>
+          <!-- Plan -->
+          <button onclick="switchScreen('plan')" class="nav-item flex flex-col items-center gap-1 flex-1 py-1 text-slate-400 hover:text-slate-200">
+            <div class="w-12 h-7 rounded-full flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </div>
+            <span class="text-[11px] font-medium tracking-tight">Plan</span>
+          </button>
+          <!-- Goals -->
+          <button onclick="switchScreen('goals')" class="nav-item flex flex-col items-center gap-1 flex-1 py-1 text-slate-400 hover:text-slate-200">
+            <div class="w-12 h-7 rounded-full flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <span class="text-[11px] font-medium tracking-tight">Goals</span>
+          </button>
+          <!-- Insights -->
+          <button onclick="switchScreen('insights')" class="nav-item flex flex-col items-center gap-1 flex-1 py-1 text-slate-400 hover:text-slate-200">
+            <div class="w-12 h-7 rounded-full flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <span class="text-[11px] font-medium tracking-tight">Insights</span>
+          </button>
+        </nav>
+
+        <!-- Android Home Pill Indicator -->
+        <div class="absolute bottom-1 inset-x-0 flex justify-center z-30 pointer-events-none">
+          <div class="w-32 h-1 bg-current opacity-30 rounded-full"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Companion Specification & Verification Panel -->
+    <div class="w-full flex-1 flex flex-col gap-4">
+      
+      <!-- Current Screen Architecture Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+        <div class="flex items-center justify-between mb-2">
+          <h2 id="inspectorTitle" class="text-base font-bold text-white flex items-center gap-2">
+            1. Home / Financial Dashboard
+          </h2>
+          <span id="inspectorRoute" class="text-xs px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 font-mono">/home</span>
+        </div>
+        <p id="inspectorDescription" class="text-xs text-slate-300 leading-relaxed mb-4">
+          Financial command center. Shows the dynamic Safe-to-Spend hero card (Liquid Balances − Virtual Reservations − Uncovered Bills), accounts carousel, collision alerts, and recent posted ledger activity.
+        </p>
+
+        <!-- Applied Tokens & Invariants -->
+        <div class="border-t border-slate-800 pt-3">
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Verified Contract & Invariants:</h3>
+          <ul id="inspectorTokens" class="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
+            <li><span class="text-emerald-400 font-semibold">Formula:</span> Safe-to-Spend = max(0, L − R − U − B). Deficit surfaced honestly if negative.</li>
+            <li><span class="text-blue-400 font-semibold">Tri-State:</span> Liquid accounts distinct from virtual bucket reservations.</li>
+            <li><span class="text-amber-400 font-semibold">Labeled Fixtures:</span> Sample numbers labeled clearly to prevent false production claims.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Interactive State Toggles -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2.5">Interactive Test Triggers</h3>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <button onclick="toggleDeficit()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-left transition">
+            <span class="font-semibold block text-red-400">Toggle Deficit Mode</span>
+            <span class="text-[10px] text-slate-400">Simulate L &lt; R + U + B</span>
+          </button>
+          <button onclick="switchScreen('diversion')" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-left transition">
+            <span class="font-semibold block text-amber-400">Goal Diversion</span>
+            <span class="text-[10px] text-slate-400">Projected delay check</span>
+          </button>
+          <button onclick="switchScreen('reconcile')" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-left transition">
+            <span class="font-semibold block text-amber-400">Bank Discrepancy</span>
+            <span class="text-[10px] text-slate-400">Statement gap alert</span>
+          </button>
+          <button onclick="switchScreen('add_tx')" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-left transition">
+            <span class="font-semibold block text-emerald-400">Split Transaction</span>
+            <span class="text-[10px] text-slate-400">Zero-sum balance</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Financial Fixtures Disclaimer -->
+      <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 flex items-start gap-2.5">
+        <svg class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <p>
+          <strong class="text-slate-200">Labeled Design Fixtures:</strong> All balances (₹1,20,000.00), dates, merchants, and goal projections shown are illustrative design fixtures demonstrating typography, spacing, and edge cases.
+        </p>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    let currentTheme = 'dark';
+    let currentScreen = 'home';
+    let currentViewportWidth = 390;
+    let isDeficitMode = false;
+
+    // Theme color dictionary corresponding strictly to tokens in 01-DESIGN-TOKENS-AND-THEME.md
+    const themeTokens = {
+      dark: {
+        bg: '#111415',
+        surface: '#191C1D',
+        surface1: '#202526',
+        surface2: '#262C2E',
+        textPrimary: '#E1E3E4',
+        textSecondary: '#C4C7C5',
+        textMuted: '#8E918F',
+        border: 'rgba(255, 255, 255, 0.08)',
+        inputBg: 'rgba(0, 0, 0, 0.25)',
+        inputBorder: 'rgba(255, 255, 255, 0.12)',
+        navBg: 'rgba(38, 44, 46, 0.95)',
+        safeToSpendContainer: '#003927',
+        safeToSpendText: '#A5F2D2',
+        safeToSpendFigure: '#48D597',
+        deficitContainer: '#93000A',
+        deficitText: '#FFDAD6',
+        deficitFigure: '#FFB4AB',
+        reservedBadge: '#97BCE8',
+        tagBg: 'rgba(255, 255, 255, 0.06)'
+      },
+      light: {
+        bg: '#F8F9FA',
+        surface: '#FFFFFF',
+        surface1: '#FFFFFF',
+        surface2: '#F1F4F2',
+        textPrimary: '#191C1E',
+        textSecondary: '#444746',
+        textMuted: '#747775',
+        border: 'rgba(0, 0, 0, 0.08)',
+        inputBg: '#F1F4F2',
+        inputBorder: 'rgba(0, 0, 0, 0.14)',
+        navBg: 'rgba(255, 255, 255, 0.98)',
+        safeToSpendContainer: '#D0F8E3',
+        safeToSpendText: '#002117',
+        safeToSpendFigure: '#11694E',
+        deficitContainer: '#FFDAD6',
+        deficitText: '#410002',
+        deficitFigure: '#BA1A1A',
+        reservedBadge: '#344C64',
+        tagBg: 'rgba(0, 0, 0, 0.04)'
+      }
+    };
+
+    function setDeviceSize(width, height, label) {
+      currentViewportWidth = width;
+      const frame = document.getElementById('deviceFrame');
+      frame.style.width = width + 'px';
+      frame.style.height = height + 'px';
+
+      // Update button highlights
+      ['360', '390', '412'].forEach(sz => {
+        const btn = document.getElementById('btnSize' + sz);
+        if (sz === width.toString()) {
+          btn.className = "px-2.5 py-1 rounded font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition";
+        } else {
+          btn.className = "px-2.5 py-1 rounded font-medium text-slate-400 hover:text-white transition";
+        }
+      });
+      renderScreen(currentScreen);
+    }
+
+    function setTheme(theme) {
+      currentTheme = theme;
+      const t = themeTokens[theme];
+      const device = document.getElementById('deviceScreen');
+      const navBar = document.getElementById('navBar');
+      const btnLight = document.getElementById('btnLightMode');
+      const btnDark = document.getElementById('btnDarkMode');
+
+      device.style.backgroundColor = t.bg;
+      device.style.color = t.textPrimary;
+      navBar.style.backgroundColor = t.navBg;
+      navBar.style.borderColor = t.border;
+
+      if (theme === 'light') {
+        btnLight.className = "px-3 py-1 rounded font-semibold transition flex items-center gap-1.5 bg-emerald-600 text-white shadow-sm";
+        btnDark.className = "px-3 py-1 rounded font-medium transition flex items-center gap-1.5 text-slate-400 hover:text-slate-200";
+      } else {
+        btnDark.className = "px-3 py-1 rounded font-semibold transition flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+        btnLight.className = "px-3 py-1 rounded font-medium transition flex items-center gap-1.5 text-slate-400 hover:text-slate-200";
+      }
+      renderScreen(currentScreen);
+    }
+
+    function toggleDeficit() {
+      isDeficitMode = !isDeficitMode;
+      if (currentScreen !== 'home') switchScreen('home');
+      else renderScreen('home');
+    }
+
+    function switchScreen(screenKey) {
+      currentScreen = screenKey;
+
+      // Update pill highlighting
+      document.querySelectorAll('.screen-pill').forEach(pill => {
+        pill.className = "screen-pill shrink-0 px-3 py-1.5 rounded-full bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800 font-medium";
+      });
+      const activePill = document.getElementById(`pill-${screenKey}`);
+      if (activePill) {
+        activePill.className = "screen-pill shrink-0 px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 font-bold shadow-sm";
+      }
+
+      // FAB visibility
+      const fab = document.getElementById('fabContainer');
+      fab.style.display = ['home', 'activity', 'plan'].includes(screenKey) ? 'block' : 'none';
+
+      // Bottom nav item highlighting
+      const navItems = document.querySelectorAll('.nav-item');
+      navItems.forEach(item => {
+        item.classList.remove('text-emerald-400', 'font-semibold');
+        item.classList.add('text-slate-400');
+        const iconWrap = item.querySelector('div');
+        if (iconWrap) iconWrap.classList.remove('bg-emerald-500/20');
+      });
+
+      const navMap = { home: 0, activity: 1, plan: 2, goals: 3, insights: 4 };
+      if (navMap[screenKey] !== undefined) {
+        const activeNav = navItems[navMap[screenKey]];
+        activeNav.classList.remove('text-slate-400');
+        activeNav.classList.add('text-emerald-400', 'font-semibold');
+        activeNav.querySelector('div').classList.add('bg-emerald-500/20');
+      }
+
+      renderScreen(screenKey);
+      updateInspector(screenKey);
+    }
+
+    function updateInspector(screenKey) {
+      const titles = {
+        home: "1. Home / Financial Dashboard",
+        activity: "2. Activity & Transaction Ledger",
+        plan: "3. Plan & Monthly Budgets",
+        goals: "4. Goals & Emergency Reserves",
+        insights: "5. Insights & Operating Cash Flow",
+        onboarding: "6. Welcome & Opening Balance",
+        accounts: "7. Accounts & Cash Wallets",
+        add_tx: "8. Add Income / Expense / Transfer Sheet",
+        diversion: "9. Goal Diversion & Warning Sheet",
+        reconcile: "10. Account Statement Reconciliation"
+      };
+
+      const routes = {
+        home: "/home", activity: "/activity", plan: "/plan", goals: "/goals", insights: "/insights",
+        onboarding: "/onboarding", accounts: "/accounts", add_tx: "/transaction/add",
+        diversion: "/goals/{id}/divert", reconcile: "/accounts/{id}/reconcile"
+      };
+
+      const descriptions = {
+        home: "The personal command center. Features the dynamic Safe-to-Spend hero card (Liquid Balances − Virtual Reservations − Uncovered Bills), accounts carousel, and recent activity.",
+        activity: "Authoritative immutable double-entry history. Sticky search bar, multi-category split breakdowns, cleared vs pending states, and audit-grade reverse-and-replace corrections.",
+        plan: "Monthly envelope budgeting. Explicit rollover policies (Off vs Carry-Forward), category allowances, unassigned pool, and cash-flow forecasting.",
+        goals: "Priority ranked financial targets. Clear distinction between actually funded reserves and planned projections. Collision alert under funding shortfall.",
+        insights: "True ledger-derived intelligence. Excludes transfers and opening equity from income/expense. Real monthly operating surplus and category concentration.",
+        onboarding: "First-run experience establishing local privacy (zero cloud, no SMS scraping), book creation in INR, and initial opening equity event.",
+        accounts: "Physical bank accounts and cash wallets inventory. Displays posted vs cleared balances, reconciliation status, and non-liquid investment cost tracking.",
+        add_tx: "High-speed modal transaction sheet. Supports single expenses, categorized income, transfers between owned accounts, and exact-sum split categories.",
+        diversion: "Consequence simulator before diverting protected goal money. Computes remaining reserve, delay in months, increased monthly requirements, and requires explicit confirmation.",
+        reconcile: "Statement balance reconciliation. Automatically surfaces discrepancies without guessing or silent auto-adjustments."
+      };
+
+      document.getElementById('inspectorTitle').innerText = titles[screenKey] || "Screen Specification";
+      document.getElementById('inspectorRoute').innerText = routes[screenKey] || "/";
+      document.getElementById('inspectorDescription').innerText = descriptions[screenKey] || "";
+    }
+
+    function renderScreen(screenKey) {
+      const viewport = document.getElementById('screenViewport');
+      const t = themeTokens[currentTheme];
+      const isDark = currentTheme === 'dark';
+      
+      const cardBg = t.surface1;
+      const border = t.border;
+      const textPri = t.textPrimary;
+      const textSec = t.textSecondary;
+      const textMut = t.textMuted;
+      const inputBg = t.inputBg;
+      const inputBdr = t.inputBorder;
+      const isCompact = currentViewportWidth <= 360;
+
+      // Fixture indicator banner
+      const fixtureBanner = `
+        <div class="px-4 pt-1 pb-1">
+          <div class="text-[9px] uppercase tracking-wider text-center font-semibold py-0.5 rounded ${isDark ? 'bg-white/5 text-slate-400' : 'bg-black/5 text-slate-500'}">
+            Design Fixture • Illustrative Figures Only
+          </div>
+        </div>
+      `;
+
+      if (screenKey === 'home') {
+        viewport.innerHTML = `
+          ${fixtureBanner}
+          <!-- Top App Bar -->
+          <div class="px-4 pt-2 pb-2 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center font-bold text-sm border border-emerald-500/30">
+                ₹
+              </div>
+              <div>
+                <div class="flex items-center gap-1 text-xs font-bold" style="color: ${textPri}">
+                  Personal INR <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+                <div class="text-[10px]" style="color: ${textMut}">Asia/Kolkata • Ledger On-Device</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="switchScreen('reconcile')" class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold border border-amber-500/40" title="Reconciliation Gap">
+                !
+              </button>
+              <div class="w-8 h-8 rounded-full bg-slate-700/60 flex items-center justify-center text-xs font-bold text-white border border-white/10">
+                AB
+              </div>
+            </div>
+          </div>
+
+          <!-- Safe-to-Spend Hero Card -->
+          <div class="px-4 py-2">
+            <div class="rounded-3xl p-5 shadow-sm transition-all duration-300" style="background-color: ${isDeficitMode ? t.deficitContainer : t.safeToSpendContainer}; color: ${isDeficitMode ? t.deficitText : t.safeToSpendText};">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] font-bold tracking-wider uppercase opacity-90">
+                  ${isDeficitMode ? '⚠️ SAFE-TO-SPEND DEFICIT' : 'SAFE-TO-SPEND (Through Oct 31)'}
+                </span>
+                <button onclick="switchScreen('plan')" class="opacity-80 hover:opacity-100">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </button>
+              </div>
+
+              <!-- Primary Amount -->
+              <div class="text-3xl font-extrabold tnum tracking-tight mb-1" style="color: ${isDeficitMode ? t.deficitFigure : t.safeToSpendFigure};">
+                ${isDeficitMode ? '-₹ 8,400<span class="text-xl font-medium opacity-75">.00</span>' : '₹ 42,500<span class="text-xl font-medium opacity-75">.00</span>'}
+              </div>
+              <p class="text-xs opacity-90 mb-3.5 font-normal">
+                ${isDeficitMode ? 'Commitments exceed liquid cash. Rebalance budgets.' : 'Ready for unencumbered spending today'}
+              </p>
+
+              <!-- Formula Footnote Breakdown -->
+              <div class="border-t border-current/20 pt-3 grid grid-cols-3 gap-2 text-[11px]">
+                <div>
+                  <div class="opacity-70 text-[10px]">Liquid Cash</div>
+                  <div class="font-bold tnum">₹1,20,000</div>
+                </div>
+                <div>
+                  <div class="opacity-70 text-[10px]">Reserved</div>
+                  <div class="font-bold tnum text-blue-300">-₹65,000</div>
+                </div>
+                <div>
+                  <div class="opacity-70 text-[10px]">Uncovered</div>
+                  <div class="font-bold tnum text-red-300">-₹12,500</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Accounts Carousel -->
+          <div class="pt-3 pb-2">
+            <div class="px-4 flex items-center justify-between mb-2">
+              <h3 class="text-xs font-bold uppercase tracking-wider" style="color: ${textSec}">Liquid Accounts (₹1.20L)</h3>
+              <button onclick="switchScreen('accounts')" class="text-xs font-semibold text-emerald-500 hover:underline">View All (4)</button>
+            </div>
+            
+            <div class="px-4 flex gap-3 overflow-x-auto pb-2 mobile-scroll">
+              <div onclick="switchScreen('accounts')" class="shrink-0 w-44 p-3.5 rounded-2xl cursor-pointer hover:border-emerald-500/50 transition border" style="background-color: ${cardBg}; border-color: ${border}">
+                <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-xs font-bold truncate" style="color: ${textPri}">HDFC Salary</span>
+                  <span class="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold">Bank</span>
+                </div>
+                <div class="text-base font-extrabold tnum" style="color: ${textPri}">₹ 1,12,000<span class="text-xs opacity-70">.00</span></div>
+                <div class="text-[10px] mt-1 flex items-center gap-1" style="color: ${textMut}">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Cleared: ₹1.05L
+                </div>
+              </div>
+
+              <div onclick="switchScreen('accounts')" class="shrink-0 w-44 p-3.5 rounded-2xl cursor-pointer hover:border-emerald-500/50 transition border" style="background-color: ${cardBg}; border-color: ${border}">
+                <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-xs font-bold truncate" style="color: ${textPri}">Cash Wallet</span>
+                  <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">Cash</span>
+                </div>
+                <div class="text-base font-extrabold tnum" style="color: ${textPri}">₹ 8,000<span class="text-xs opacity-70">.00</span></div>
+                <div class="text-[10px] mt-1 flex items-center gap-1" style="color: ${textMut}">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> In Pocket Cash
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Attention Banner -->
+          <div class="px-4 py-1.5">
+            <div onclick="switchScreen('diversion')" class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 cursor-pointer hover:bg-amber-500/15 transition">
+              <div class="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold">
+                ⚠️
+              </div>
+              <div class="flex-1">
+                <div class="text-xs font-bold text-amber-400">Goal Collision Warning</div>
+                <div class="text-[11px] mt-0.5 leading-tight" style="color: ${textSec}">Capacity shortage of ₹3,000/mo. Emergency cushion falling behind.</div>
+              </div>
+              <span class="text-xs font-bold text-amber-400 mt-1">Review &rarr;</span>
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="px-4 pt-3">
+            <div class="flex items-center justify-between mb-2 px-1">
+              <h3 class="text-xs font-bold uppercase tracking-wider" style="color: ${textSec}">Recent Activity</h3>
+              <button onclick="switchScreen('activity')" class="text-xs font-semibold text-emerald-500 hover:underline">See All</button>
+            </div>
+
+            <div class="rounded-2xl divide-y border shadow-sm" style="background-color: ${cardBg}; border-color: ${border}; divide-color: ${border}">
+              
+              <div class="p-3.5 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center text-sm font-bold">
+                    🛒
+                  </div>
+                  <div>
+                    <div class="text-xs font-bold" style="color: ${textPri}">Nature's Basket</div>
+                    <div class="text-[10px]" style="color: ${textMut}">HDFC • Groceries • Today</div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-xs font-bold tnum" style="color: ${textPri}">-₹ 2,450.00</div>
+                  <div class="text-[10px] text-emerald-500 font-semibold">Cleared ✓</div>
+                </div>
+              </div>
+
+              <div class="p-3.5 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-sm font-bold">
+                    ⚡
+                  </div>
+                  <div>
+                    <div class="text-xs font-bold" style="color: ${textPri}">BESCOM Electricity</div>
+                    <div class="text-[10px]" style="color: ${textMut}">HDFC • Utilities • Yesterday</div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-xs font-bold tnum" style="color: ${textPri}">-₹ 1,820.00</div>
+                  <div class="text-[10px] text-emerald-500 font-semibold">Cleared ✓</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        `;
+      } else if (screenKey === 'activity') {
+        viewport.innerHTML = `
+          ${fixtureBanner}
+          <div class="px-4 pt-2 pb-2">
+            <h1 class="text-lg font-bold" style="color: ${textPri}">Activity & History</h1>
+            <p class="text-xs" style="color: ${textMut}">Authoritative double-entry ledger</p>
+          </div>
+
+          <div class="px-4 pb-2">
+            <div class="relative">
+              <input type="text" placeholder="Search payee, memo, amount..." class="w-full text-xs rounded-xl py-2 pl-9 pr-4 border focus:outline-none focus:ring-1 focus:ring-emerald-500" style="background-color: ${inputBg}; border-color: ${inputBdr}; color: ${textPri}">
+              <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+            <div class="flex items-center gap-2 mt-2 overflow-x-auto pb-1 text-[11px] mobile-scroll">
+              <span class="px-2.5 py-1 rounded-full bg-emerald-500 text-slate-950 font-bold shrink-0">All (38)</span>
+              <span class="px-2.5 py-1 rounded-full border shrink-0" style="background-color: ${cardBg}; border-color: ${border}; color: ${textSec}">Expenses</span>
+              <span class="px-2.5 py-1 rounded-full border shrink-0" style="background-color: ${cardBg}; border-color: ${border}; color: ${textSec}">Income</span>
+              <span class="px-2.5 py-1 rounded-full border shrink-0 text-amber-500 font-semibold" style="background-color: ${cardBg}; border-color: ${border}">Pending (2)</span>
+            </div>
+          </div>
+
+          <!-- Grouped: Today -->
+          <div class="px-4 py-1.5">
+            <div class="text-[10px] font-bold uppercase tracking-wider px-1 mb-1.5" style="color: ${textMut}">Today, Oct 23</div>
+            <div class="rounded-2xl divide-y border shadow-sm" style="background-color: ${cardBg}; border-color: ${border}; divide-color: ${border}">
+              <div onclick="switchScreen('add_tx')" class="p-3.5 flex items-center justify-between cursor-pointer hover:bg-black/5">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-sm font-bold">
+                    🍽️
+                  </div>
+                  <div>
+                    <div class="text-xs font-bold" style="color: ${textPri}">Toit Brewpub (Split)</div>
+                    <div class="text-[10px]" style="color: ${textMut}">Dining (₹2.45K) • Transport (₹1K)</div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-xs font-bold tnum" style="color: ${textPri}">-₹ 3,450.00</div>
+                  <div class="text-[10px] text-emerald-500 font-semibold">Cleared ✓</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Grouped: Yesterday -->
+          <div class="px-4 pt-3">
+            <div class="text-[10px] font-bold uppercase tracking-wider px-1 mb-1.5" style="color: ${textMut}">Yesterday, Oct 22</div>
+            <div class="rounded-2xl divide-y border shadow-sm" style="background-color: ${cardBg}; border-color: ${border}; divide-color: ${border}">
+              <!-- Tx Uncleared -->
+              <div class="p-3.5 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-sm font-bold">
+                    ⏳
+                  </div>
+                  <div>
+                    <div class="text-xs font-bold" style="color: ${textPri}">Consulting Cheque</div>
+                    <div class="text-[10px]" style="color: ${textMut}">HDFC Salary • In-Flight Deposit</div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-xs font-bold tnum text-emerald-500">+₹ 7,000.00</div>
+                  <div class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-500 font-bold inline-block">PENDING</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Correction Event -->
+          <div class="px-4 pt-3 pb-2">
+            <div class="p-3 rounded-xl border text-xs flex items-start gap-2.5" style="background-color: ${cardBg}; border-color: ${border}">
+              <span class="text-sm">↩️</span>
+              <div>
+                <span class="font-bold" style="color: ${textPri}">Reversal Event #J-1082:</span>
+                <p class="text-[11px] mt-0.5" style="color: ${textSec}">Original entry of ₹500 reversed and replaced by #J-1083. Non-destructive audit permanence.</p>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (screenKey === 'plan') {
+        viewport.innerHTML = `
+          ${fixtureBanner}
+          <div class="px-4 pt-2 pb-2 flex items-center justify-between">
+            <div>
+              <h1 class="text-lg font-bold" style="color: ${textPri}">Monthly Budgets</h1>
+              <p class="text-xs" style="color: ${textMut}">October 2026 Envelope Allocation</p>
+            </div>
+            <div class="flex items-center rounded-lg p-0.5 text-xs border" style="background-color: ${cardBg}; border-color: ${border}">
+              <span class="px-2 py-0.5 font-bold text-emerald-500">Oct 2026</span>
+            </div>
+          </div>
+
+          <div class="px-4 py-1.5">
+            <div class="rounded-2xl p-4 border shadow-sm" style="background-color: ${cardBg}; border-color: ${border}">
+              <div class="flex justify-between items-center mb-1 text-xs">
+                <span style="color: ${textMut}">Total Real Income Posted</span>
+                <span class="font-bold tnum" style="color: ${textPri}">₹ 1,00,000.00</span>
+              </div>
+              <div class="flex justify-between items-center mb-2.5 text-xs">
+                <span style="color: ${textMut}">Allocated to Category Limits</span>
+                <span class="font-bold tnum text-blue-400">₹ 80,000.00 (80%)</span>
+              </div>
+
+              <div class="w-full h-2.5 bg-black/20 rounded-full overflow-hidden flex mb-2">
+                <div class="bg-blue-500 h-full" style="width: 55%"></div>
+                <div class="bg-amber-500 h-full" style="width: 25%"></div>
+                <div class="bg-slate-500 h-full" style="width: 20%"></div>
+              </div>
+
+              <div class="flex justify-between text-[11px] pt-1">
+                <span class="text-emerald-500 font-bold">Unassigned Pool: ₹20,000.00</span>
+                <span style="color: ${textMut}">Ready to allocate</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Essentials -->
+          <div class="px-4 pt-3">
+            <div class="flex justify-between text-[11px] font-bold uppercase tracking-wider px-1 mb-1.5" style="color: ${textSec}">
+              <span>Essentials & Bills (4)</span>
+              <span>Spent ₹28.5K / ₹45K</span>
+            </div>
+
+            <div class="rounded-2xl divide-y border shadow-sm" style="background-color: ${cardBg}; border-color: ${border}; divide-color: ${border}">
+              <div class="p-3.5">
+                <div class="flex justify-between items-center text-xs mb-1">
+                  <span class="font-bold" style="color: ${textPri}">🏠 Rent & Housing</span>
+                  <span class="font-bold tnum" style="color: ${textPri}">₹ 25,000 / ₹25,000</span>
+                </div>
+                <div class="w-full h-1.5 bg-black/20 rounded-full overflow-hidden mb-1">
+                  <div class="bg-emerald-500 h-full w-full"></div>
+                </div>
+                <div class="flex justify-between text-[10px]" style="color: ${textMut}">
+                  <span>100% Used • Rollover: OFF</span>
+                  <span>Remaining: ₹0.00</span>
+                </div>
+              </div>
+
+              <div class="p-3.5">
+                <div class="flex justify-between items-center text-xs mb-1">
+                  <span class="font-bold" style="color: ${textPri}">⚡ Electricity & Water</span>
+                  <span class="font-bold tnum" style="color: ${textPri}">₹ 1,820 / ₹3,500</span>
+                </div>
+                <div class="w-full h-1.5 bg-black/20 rounded-full overflow-hidden mb-1">
+                  <div class="bg-emerald-500 h-full" style="width: 52%"></div>
+                </div>
+                <div class="flex justify-between text-[10px]">
+                  <span style="color: ${textMut}">52% Used • Rollover: ON (Carry)</span>
+                  <span class="text-emerald-500 font-bold">Remaining: ₹1,680.00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Discretionary with Overspend -->
+          <div class="px-4 pt-3 pb-2">
+            <div class="flex justify-between text-[11px] font-bold uppercase tracking-wider px-1 mb-1.5" style="color: ${textSec}">
+              <span>Discretionary (3)</span>
+              <span class="text-red-500 font-bold">OVERSPENT</span>
+            </div>
+
+            <div class="rounded-2xl divide-y border shadow-sm" style="background-color: ${cardBg}; border-color: ${border}; divide-color: ${border}">
+              <div class="p-3.5 bg-red-500/5">
+                <div class="flex justify-between items-center text-xs mb-1">
+                  <span class="font-bold text-red-500">⚠️ Groceries & Supplies</span>
+                  <span class="font-bold tnum text-red-500">₹ 14,200 / ₹12,000</span>
+                </div>
+                <div class="w-full h-1.5 bg-black/20 rounded-full overflow-hidden mb-1">
+                  <div class="bg-red-500 h-full w-full"></div>
+                </div>
+                <div class="flex justify-between text-[10px]">
+                  <span class="text-red-500 font-bold">118% Spent</span>
+                  <span class="text-red-500 font-bold tnum">-₹2,200.00 (Reduces Safe-to-Spend)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (screenKey === 'goals') {
+        viewport.innerHTML = `
+          ${fixtureBanner}
+          <div class="px-4 pt-2 pb-2">
+            <h1 class="text-lg font-bold" style="color: ${textPri}">Goals & Reserves</h1>
+            <p class="text-xs" style="color: ${textMut}">Emergency runway & prioritized targets</p>
+          </div>
+
+          <div class="px-4 py-1.5">
+            <div class="p-4 rounded-2xl border shadow-sm" style="background-color: ${cardBg}; border-color: ${border}">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-bold uppercase tracking-wider text-blue-400">
+                  🛡️ Emergency Cushion (6-Mo)
+                </span>
+                <span class="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold">PROTECTED</span>
+              </div>
+              <div class="text-2xl font-extrabold tnum mb-1.5" style="color: ${textPri}">₹ 50,000<span class="text-sm opacity-70"> / ₹1,50,000</span></div>
+              <div class="w-full h-2 bg-black/20 rounded-full overflow-hidden mb-2">
+                <div class="bg-blue-500 h-full" style="width: 33%"></div>
+              </div>
+              <div class="flex justify-between text-[11px]" style="color: ${textSec}">
+                <span>Runway: 2.1 Months essential expenses</span>
+                <span class="text-blue-400 font-bold">33% Funded</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-4 pt-3 pb-2">
+            <div class="flex justify-between text-[11px] font-bold uppercase tracking-wider px-1 mb-1.5" style="color: ${textSec}">
+              <span>Priority 1 Goal</span>
+              <span class="text-emerald-500 font-bold">Deadline: Dec 2027</span>
+            </div>
+
+            <div class="rounded-2xl p-4 border shadow-sm" style="background-color: ${cardBg}; border-color: ${border}">
+              <div class="flex items-center justify-between mb-1">
+                <h3 class="text-sm font-bold" style="color: ${textPri}">🚗 Buy Electric Car</h3>
+                <span class="text-xs font-bold tnum text-emerald-500">30.0%</span>
+              </div>
+              <div class="text-lg font-extrabold tnum mb-2" style="color: ${textPri}">₹ 1,80,000<span class="text-xs opacity-70"> / ₹6,00,000</span></div>
+              
+              <div class="w-full h-2 bg-black/20 rounded-full overflow-hidden mb-3">
+                <div class="bg-emerald-500 h-full" style="width: 30%"></div>
+              </div>
+
+              <div class="rounded-xl p-2.5 text-[11px] space-y-1 mb-3" style="background-color: ${inputBg}">
+                <div class="flex justify-between" style="color: ${textSec}">
+                  <span>Remaining Target:</span>
+                  <span class="font-bold tnum" style="color: ${textPri}">₹ 4,20,000.00</span>
+                </div>
+                <div class="flex justify-between" style="color: ${textSec}">
+                  <span>Required Monthly:</span>
+                  <span class="font-bold tnum" style="color: ${textPri}">₹ 30,000.00 / mo</span>
+                </div>
+                <div class="flex justify-between" style="color: ${textSec}">
+                  <span>Planned Contribution:</span>
+                  <span class="font-bold tnum text-amber-500">₹ 25,000.00 / mo</span>
+                </div>
+                <div class="flex justify-between text-amber-500 font-semibold pt-1 border-t border-black/10">
+                  <span>⚠️ Funding Shortfall:</span>
+                  <span>-₹5,000/mo (Delay: 2.8 mos)</span>
+                </div>
+              </div>
+
+              <div class="flex gap-2">
+                <button onclick="switchScreen('add_tx')" class="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition">
+                  Fund Goal
+                </button>
+                <button onclick="switchScreen('diversion')" class="px-3 py-2 rounded-xl border hover:bg-black/5 text-xs text-amber-500 font-semibold transition" style="border-color: ${border}">
+                  Divert Preview
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (screenKey === 'insights') {
+        viewport.innerHTML = `
+          ${fixtureBanner}
+          <div class="px-4 pt-2 pb-2 flex justify-between items-center">
+            <div>
+              <h1 class="text-lg font-bold" style="color: ${textPri}">Financial Insights</h1>
+              <p class="text-xs" style="color: ${textMut}">True operating surplus (excluding transfers)</p>
+            </div>
+            <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">Oct 2026</span>
+          </div>
+
+          <div class="px-4 py-1.5">
+            <div class="p-4 rounded-2xl border shadow-sm" style="background-color: ${cardBg}; border-color: ${border}">
+              <div class="text-[10px] uppercase font-bold tracking-wider mb-1" style="color: ${textMut}">Net Cash Surplus (Savings Rate 47.5%)</div>
+              <div class="text-3xl font-extrabold tnum text-emerald-500 mb-2">₹ 47,550<span class="text-lg opacity-70">.00</span></div>
+              
+              <div class="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-black/10">
+                <div>
+                  <span class="text-[10px] block" style="color: ${textMut}">Total Real Income</span>
+                  <span class="font-bold tnum" style="color: ${textPri}">₹ 1,00,000.00</span>
+                </div>
+                <div>
+                  <span class="text-[10px] block" style="color: ${textMut}">Household Expenses</span>
+                  <span class="font-bold tnum text-red-500">-₹ 52,450.00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-4 pt-3 pb-2">
+            <h3 class="text-[11px] font-bold uppercase tracking-wider px-1 mb-1.5" style="color: ${textSec}">3-Month Trend (Income vs Expense)</h3>
+            <div class="p-4 rounded-2xl border shadow-sm space-y-3" style="background-color: ${cardBg}; border-color: ${border}">
+              
+              <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                  <span class="font-semibold" style="color: ${textSec}">Aug 2026</span>
+                  <span class="tnum text-emerald-500 font-bold">+₹45K Saved</span>
+                </div>
+                <div class="flex h-2.5 rounded-full overflow-hidden bg-black/20 gap-0.5">
+                  <div class="bg-emerald-500 h-full" style="width: 65%"></div>
+                  <div class="bg-red-400 h-full" style="width: 35%"></div>
+                </div>
+              </div>
+
+              <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                  <span class="font-semibold" style="color: ${textSec}">Sep 2026</span>
+                  <span class="tnum text-emerald-500 font-bold">+₹43K Saved</span>
+                </div>
+                <div class="flex h-2.5 rounded-full overflow-hidden bg-black/20 gap-0.5">
+                  <div class="bg-emerald-500 h-full" style="width: 63%"></div>
+                  <div class="bg-red-400 h-full" style="width: 37%"></div>
+                </div>
+              </div>
+
+              <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                  <span class="font-semibold" style="color: ${textSec}">Oct 2026</span>
+                  <span class="tnum text-emerald-500 font-bold">+₹47.5K Saved</span>
+                </div>
+                <div class="flex h-2.5 rounded-full overflow-hidden bg-black/20 gap-0.5">
+                  <div class="bg-emerald-500 h-full" style="width: 68%"></div>
+                  <div class="bg-red-400 h-full" style="width: 32%"></div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        `;
+      } else if (screenKey === 'onboarding') {
+        viewport.innerHTML = `
+          ${fixtureBanner}
+          <div class="p-5 flex flex-col justify-between min-h-[680px]">
+            <div>
+              <div class="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold text-2xl mb-3 shadow-lg shadow-emerald-950/40">
+                ₹
+              </div>
+              <h1 class="text-xl font-bold tracking-tight mb-1" style="color: ${textPri}">Welcome to FinTrack</h1>
+              <p class="text-xs mb-5" style="color: ${textSec}">Your personal money command center. Completely private. Stored solely on this device.</p>
+
+              <div class="rounded-2xl p-3.5 border mb-5" style="background-color: ${cardBg}; border-color: ${border}">
+                <div class="text-xs font-bold text-emerald-500 flex items-center gap-1.5 mb-2">
+                  🛡️ Local Privacy Guarantee
+                </div>
+                <ul class="text-[11px] space-y-1.5" style="color: ${textSec}">
+                  <li>• No cloud accounts or passwords required</li>
+                  <li>• Zero bank scraping or SMS access</li>
+                  <li>• Exact double-entry ledger in Indian Rupees</li>
+                </ul>
+              </div>
+
+              <div class="space-y-3.5">
+                <div>
+                  <label class="text-[11px] font-bold block mb-1" style="color: ${textSec}">Primary Account Name</label>
+                  <input type="text" value="HDFC Salary Account" class="w-full text-xs rounded-xl py-2 px-3 border" style="background-color: ${inputBg}; border-color: ${inputBdr}; color: ${textPri}">
+                </div>
+
+                <div>
+                  <label class="text-[11px] font-bold block mb-1" style="color: ${textSec}">Opening Liquid Balance</label>
+                  <div class="relative">
+                    <span class="absolute left-3 top-2 text-xs font-bold text-slate-400">₹</span>
+                    <input type="text" value="75,000.00" class="w-full text-xs font-bold tnum rounded-xl py-2 pl-7 pr-3 border" style="background-color: ${inputBg}; border-color: ${inputBdr}; color: ${textPri}">
+                  </div>
+                  <span class="text-[10px] mt-1 block" style="color: ${textMut}">ℹ️ Creates a verifiable opening equity ledger event.</span>
+                </div>
+              </div>
+            </div>
+
+            <button onclick="switchScreen('home')" class="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold tracking-wide transition shadow-lg shadow-emerald-950/50 mt-4">
+              Start Managing My Finances &rarr;
+            </button>
+          </div>
+        `;
+      } else if (screenKey === 'accounts') {
+        viewport.innerHTML = `
+          ${fixtureBanner}
+          <div class="px-4 pt-2 pb-2 flex justify-between items-center">
+            <div>
+              <h1 class="text-lg font-bold" style="color: ${textPri}">Accounts & Wallets</h1>
+              <p class="text-xs" style="color: ${textMut}">Total Liquid Funds: ₹1,20,000.00</p>
+            </div>
+            <button onclick="switchScreen('onboarding')" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 text-white">+ New</button>
+          </div>
+
+          <div class="px-4 py-1.5 space-y-3">
+            <div class="text-[10px] font-bold uppercase tracking-wider px-1" style="color: ${textMut}">Bank Accounts</div>
+            <div class="rounded-2xl divide-y border shadow-sm" style="background-color: ${cardBg}; border-color: ${border}; divide-color: ${border}">
+              <div class="p-3.5 flex justify-between items-center">
+                <div>
+                  <div class="text-xs font-bold" style="color: ${textPri}">HDFC Salary Account</div>
+                  <div class="text-[10px]" style="color: ${textMut}">A/C •••• 4092 • Cleared: ₹1,05,000</div>
+                  <div class="text-[10px] text-amber-500 font-semibold mt-0.5">1 Uncleared Deposit (+₹7,000)</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-xs font-bold tnum" style="color: ${textPri}">₹ 1,12,000.00</div>
+                  <button onclick="switchScreen('reconcile')" class="text-[10px] text-emerald-500 font-semibold hover:underline">Reconcile</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="text-[10px] font-bold uppercase tracking-wider px-1 pt-1" style="color: ${textMut}">Tracked Non-Liquid Capital</div>
+            <div class="rounded-2xl divide-y border shadow-sm" style="background-color: ${cardBg}; border-color: ${border}; divide-color: ${border}">
+              <div class="p-3.5 flex justify-between items-center">
+                <div>
+                  <div class="text-xs font-bold" style="color: ${textPri}">Zerodha Mutual Funds</div>
+                  <div class="text-[10px]" style="color: ${textMut}">Manual Cost Basis</div>
+                  <span class="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold inline-block mt-1">Excluded from Safe-to-Spend</span>
+                </div>
+                <div class="text-right">
+                  <div class="text-xs font-bold tnum text-blue-400">₹ 2,50,000.00</div>
+                  <span class="text-[10px]" style="color: ${textMut}">Tracked Asset</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (screenKey === 'add_tx') {
+        viewport.innerHTML = `
+          ${fixtureBanner}
+          <div class="p-5 flex flex-col justify-between min-h-[680px]">
+            <div>
+              <div class="w-10 h-1 bg-slate-500/40 rounded-full mx-auto mb-3"></div>
+              <div class="flex items-center justify-between mb-3">
+                <h1 class="text-base font-bold" style="color: ${textPri}">Record Transaction</h1>
+                <button onclick="switchScreen('home')" class="text-slate-400 hover:text-white text-xs">✕ Close</button>
+              </div>
+
+              <div class="grid grid-cols-3 gap-1 p-1 rounded-xl mb-3 text-xs font-semibold" style="background-color: ${inputBg}">
+                <button class="py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm font-bold">Expense</button>
+                <button class="py-1.5 rounded-lg font-medium" style="color: ${textSec}">Income</button>
+                <button class="py-1.5 rounded-lg font-medium" style="color: ${textSec}">Transfer</button>
+              </div>
+
+              <div class="space-y-3">
+                <div>
+                  <label class="text-[10px] font-bold uppercase tracking-wider block mb-1" style="color: ${textMut}">Amount (Paise Exact)</label>
+                  <div class="relative">
+                    <span class="absolute left-3 top-2 text-base font-bold text-slate-400">₹</span>
+                    <input type="text" value="3,450.00" class="w-full text-lg font-bold tnum rounded-xl py-1.5 pl-8 pr-3 border" style="background-color: ${inputBg}; border-color: ${inputBdr}; color: ${textPri}">
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="text-[10px] font-bold uppercase tracking-wider" style="color: ${textMut}">Category Splits</label>
+                    <span class="text-[10px] text-emerald-500 font-bold">Balanced ✓ (₹3,450.00)</span>
+                  </div>
+                  <div class="rounded-xl border p-2.5 space-y-1.5" style="background-color: ${cardBg}; border-color: ${border}">
+                    <div class="flex items-center gap-2 text-xs">
+                      <span class="text-slate-400">1.</span>
+                      <span class="font-semibold flex-1" style="color: ${textPri}">🍽️ Dining Out</span>
+                      <span class="tnum font-bold" style="color: ${textPri}">₹ 2,450.00</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs">
+                      <span class="text-slate-400">2.</span>
+                      <span class="font-semibold flex-1" style="color: ${textPri}">🚕 Cab Transport</span>
+                      <span class="tnum font-bold" style="color: ${textPri}">₹ 1,000.00</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="text-[10px] font-bold uppercase tracking-wider block mb-1" style="color: ${textMut}">Payee / Merchant</label>
+                  <input type="text" value="Toit Brewpub, Indiranagar" class="w-full text-xs rounded-xl py-2 px-3 border" style="background-color: ${inputBg}; border-color: ${inputBdr}; color: ${textPri}">
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                  <span class="text-xs" style="color: ${textSec}">Bank Status:</span>
+                  <div class="flex gap-2 text-xs">
+                    <span class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-500 font-bold border border-emerald-500/30">Cleared</span>
+                    <span class="px-2.5 py-1 rounded-lg border font-medium" style="border-color: ${border}; color: ${textMut}">Pending</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button onclick="switchScreen('home')" class="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold tracking-wide transition shadow-lg shadow-emerald-950/50 mt-4">
+              Post Transaction (₹3,450.00) &rarr;
+            </button>
+          </div>
+        `;
+      } else if (screenKey === 'diversion') {
+        viewport.innerHTML = `
+          ${fixtureBanner}
+          <div class="p-5 flex flex-col justify-between min-h-[680px]">
+            <div>
+              <div class="w-10 h-1 bg-slate-500/40 rounded-full mx-auto mb-3"></div>
+              <div class="flex items-center justify-between mb-2">
+                <h1 class="text-base font-bold text-amber-500 flex items-center gap-1.5">
+                  ⚠️ Goal Diversion Warning
+                </h1>
+                <button onclick="switchScreen('goals')" class="text-slate-400 hover:text-white text-xs">✕ Cancel</button>
+              </div>
+
+              <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-400 mb-3.5 leading-relaxed font-medium">
+                Diverting money from protected reserves pushes back milestone completion and increases required monthly savings.
+              </div>
+
+              <div class="space-y-3">
+                <div>
+                  <label class="text-[10px] font-bold uppercase tracking-wider block mb-1" style="color: ${textMut}">Source Goal</label>
+                  <input type="text" disabled value="🚗 Buy Electric Car (Funded: ₹1,80,000)" class="w-full text-xs rounded-xl py-2 px-3 border opacity-80" style="background-color: ${inputBg}; border-color: ${inputBdr}; color: ${textPri}">
+                </div>
+
+                <div>
+                  <label class="text-[10px] font-bold uppercase tracking-wider block mb-1" style="color: ${textMut}">Amount to Divert</label>
+                  <div class="relative">
+                    <span class="absolute left-3 top-2 text-base font-bold text-slate-400">₹</span>
+                    <input type="text" value="30,000.00" class="w-full text-base font-bold tnum rounded-xl py-1.5 pl-8 pr-3 border text-amber-500" style="background-color: ${inputBg}; border-color: ${inputBdr}">
+                  </div>
+                </div>
+
+                <div class="rounded-xl p-3 border space-y-1.5" style="background-color: ${cardBg}; border-color: ${border}">
+                  <div class="text-[10px] font-bold uppercase tracking-wider mb-1" style="color: ${textMut}">Impact Analysis (finance-engine):</div>
+                  <div class="flex justify-between text-xs">
+                    <span style="color: ${textSec}">Remaining Reserve:</span>
+                    <span class="font-bold tnum" style="color: ${textPri}">₹ 1,50,000.00</span>
+                  </div>
+                  <div class="flex justify-between text-xs">
+                    <span style="color: ${textSec}">New Required Monthly:</span>
+                    <span class="font-bold tnum text-amber-500">₹ 32,143.00 (+₹2,143)</span>
+                  </div>
+                  <div class="flex justify-between text-xs">
+                    <span style="color: ${textSec}">Projected Delay:</span>
+                    <span class="font-bold text-red-500">+ 1.8 Months (Feb 2028)</span>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-2.5 pt-1">
+                  <input type="checkbox" id="confirmDiversion" checked class="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-0">
+                  <label for="confirmDiversion" class="text-xs leading-tight font-medium" style="color: ${textSec}">
+                    I understand this diversion delays my Electric Car completion by ~2 months.
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <button onclick="switchScreen('goals')" class="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold tracking-wide transition shadow-lg shadow-amber-950/50 mt-4">
+              Confirm Diversion of ₹30,000.00 &rarr;
+            </button>
+          </div>
+        `;
+      } else if (screenKey === 'reconcile') {
+        viewport.innerHTML = `
+          ${fixtureBanner}
+          <div class="p-5 flex flex-col justify-between min-h-[680px]">
+            <div>
+              <div class="w-10 h-1 bg-slate-500/40 rounded-full mx-auto mb-3"></div>
+              <div class="flex items-center justify-between mb-2">
+                <h1 class="text-base font-bold flex items-center gap-1.5" style="color: ${textPri}">
+                  ⚖️ Statement Reconciliation
+                </h1>
+                <button onclick="switchScreen('accounts')" class="text-slate-400 hover:text-white text-xs">✕ Close</button>
+              </div>
+
+              <p class="text-xs mb-3.5" style="color: ${textMut}">HDFC Salary Account • Compare with verified bank statement</p>
+
+              <div class="space-y-3">
+                <div>
+                  <label class="text-[10px] font-bold uppercase tracking-wider block mb-1" style="color: ${textMut}">Cleared Ledger Balance</label>
+                  <div class="text-lg font-bold tnum" style="color: ${textPri}">₹ 1,05,000.00</div>
+                </div>
+
+                <div>
+                  <label class="text-[10px] font-bold uppercase tracking-wider block mb-1" style="color: ${textMut}">Bank Statement Balance (Oct 22)</label>
+                  <div class="relative">
+                    <span class="absolute left-3 top-2 text-base font-bold text-slate-400">₹</span>
+                    <input type="text" value="1,00,000.00" class="w-full text-base font-bold tnum rounded-xl py-1.5 pl-8 pr-3 border" style="background-color: ${inputBg}; border-color: ${inputBdr}; color: ${textPri}">
+                  </div>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+                  <div class="font-bold text-amber-500 flex items-center gap-1.5 mb-1">
+                    ⚠️ Discrepancy Detected: ₹5,000.00
+                  </div>
+                  <p class="text-[11px] leading-relaxed" style="color: ${textSec}">
+                    Your bank statement shows ₹5,000.00 less than recorded cleared entries. Check for an unrecorded bank charge or duplicate credit.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button onclick="switchScreen('accounts')" class="w-full py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold tracking-wide transition border border-slate-700 mt-4">
+              Done Reviewing
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    // Initialize
+    setTheme('dark');
+    setDeviceSize(390, 844, '390dp');
+    switchScreen('home');
+  </script>
+</body>
+</html>
