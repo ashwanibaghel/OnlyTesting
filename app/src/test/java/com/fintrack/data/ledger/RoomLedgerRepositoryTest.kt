@@ -370,6 +370,10 @@ class RoomLedgerRepositoryTest {
 
     @Test fun nativeForeignKeysRejectMissingReferencesAndRollbackDraft() = scenario {
         create(); val before = count("commands")
+        val foreignKeyFailure = rejects {
+            db.ledgerDao().insertLedgerAccount(LedgerAccountEntity(uid(), "missing-book", null, "EQUITY", "Orphan control"))
+        }
+        assertTrue(foreignKeyFailure.message.orEmpty().contains("FOREIGN KEY", ignoreCase = true))
         rejects { rawJournal(listOf("bank" to 100, "missing" to -100)) }
         assertEquals(before, count("commands")); assertEquals(0L, count("postings"))
         db.openHelper.writableDatabase.query("PRAGMA foreign_keys").use { assertTrue(it.moveToFirst()); assertEquals(1, it.getInt(0)) }
