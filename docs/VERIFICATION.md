@@ -15,7 +15,7 @@ On Linux use `./gradlew`. Set JAVA_HOME and ANDROID_HOME locally; these are not 
 
 ## GitHub setup
 
-Remote requested by user: `https://github.com/ashwanibaghel/OnlyTesting.git`. Initially empty (no branch refs). Local `main` is initialized and origin configured. GitHub connector reported read permission and `push: false`; local Git credentials are checked separately before publishing.
+Remote requested by user: `https://github.com/ashwanibaghel/OnlyTesting.git`. Initially empty (no branch refs). Local `main` is initialized and origin configured. GitHub connector reported read permission and `push: false`; local Git credentials successfully published the initial foundation, so no user authentication change was needed.
 
 To run remotely, publish the reviewed foundation to this repository with an account that has write access, enable GitHub Actions and permit the pinned actions. Workflow runs on push/PR or manually through Actions -> Android CI -> Run workflow. No custom secret or signing key needed for debug. Require the `Tests, lint and debug APK` check in branch protection when available. Reports and APK are private to whoever can access the repository's artifacts; never upload real financial data. No remote CI success is claimed without a completed run.
 

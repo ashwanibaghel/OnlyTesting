@@ -31,6 +31,6 @@ Published compatibility ranges establish a baseline, not proof that this complet
 
 ## Build approach
 
-GitHub Actions uses Ubuntu 24.04, Temurin 17, Android setup, explicitly installed SDK packages, wrapper validation, JVM tests, Android unit tests, Android lint and debug assembly. APK upload occurs only after all build checks pass. Reports upload even after failure. Actions use version tags; pin reviewed action commit SHAs before production hardening.
+GitHub Actions uses Ubuntu 24.04, Temurin 17, Android setup, explicitly installed SDK packages, wrapper validation (through setup-gradle), JVM tests, Android unit tests, Android lint and debug assembly. APK upload occurs only after all build checks pass. Reports upload even after failure. Actions are pinned to verified upstream tag commit SHAs. Android setup explicitly requests platform-tools because the obsolete default `tools` package is no longer available.
 
 `-PengineOnly=true` excludes the Android module and avoids resolving Android plugins/SDK for finance-only tests. Normal builds always include the app. No machine paths or SDK installations are committed. No mandatory server, cloud, login or analytics dependency.
