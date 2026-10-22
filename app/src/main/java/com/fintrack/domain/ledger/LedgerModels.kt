@@ -2,6 +2,7 @@ package com.fintrack.domain.ledger
 
 import com.fintrack.engine.CurrencySpec
 import com.fintrack.engine.Money
+import com.fintrack.domain.planning.PlanningAction
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
@@ -35,6 +36,7 @@ sealed interface TransactionDraft {
 }
 
 sealed interface LedgerAction {
+    data class Plan(val operation: PlanningAction) : LedgerAction
     data class CreateAccount(val accountId: String, val name: String, val kind: AccountKind,
         val opening: Money, val date: LocalDate) : LedgerAction
     data class Post(val draft: TransactionDraft) : LedgerAction

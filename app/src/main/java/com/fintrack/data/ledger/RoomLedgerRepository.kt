@@ -3,6 +3,8 @@ package com.fintrack.data.ledger
 import androidx.room.withTransaction
 import com.fintrack.data.local.*
 import com.fintrack.domain.ledger.*
+import com.fintrack.domain.planning.PlanningAction
+import com.fintrack.data.planning.RoomPlanningStore
 import com.fintrack.engine.Money
 import com.fintrack.engine.Posting
 import com.fintrack.engine.sumMoney
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.map
 
 class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: Clock) : LedgerRepository {
     private val dao get() = db.ledgerDao()
+    private val planning = RoomPlanningStore(db, clock)
     private fun id() = UUID.randomUUID().toString()
     private fun money(value: Long) = Money(value, INR)
     private fun identifier(value: String) { require(value.matches(Regex("[A-Za-z0-9_-]{1,100}"))) { "Invalid identifier" } }
@@ -37,6 +40,10 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
         fun frozen(draft: TransactionDraft): TransactionDraft =
             if (draft is TransactionDraft.Expense) draft.copy(splits = draft.splits.toList()) else draft
         val action = when (val a = command.action) {
+            is LedgerAction.Plan -> a.copy(operation = when (val operation = a.operation) {
+                is PlanningAction.Move -> operation.copy(consent = operation.consent?.let { it.copy(goalImpacts = it.goalImpacts.toList()) })
+                else -> operation
+            })
             is LedgerAction.Post -> a.copy(draft = frozen(a.draft))
             is LedgerAction.Correct -> a.copy(replacement = frozen(a.replacement))
             else -> a
@@ -55,6 +62,12 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
             check(book.revision == input.expectedRevision) { "Stale financial state. Refresh and review before resubmitting" }
             val next = Math.addExact(book.revision, 1)
             val primary = when (action) {
+                is LedgerAction.Plan -> when (val operation = action.operation) {
+                    is PlanningAction.CreateReserve -> operation.id
+                    is PlanningAction.SetBudget -> operation.id
+                    is PlanningAction.SetGoal -> operation.id
+                    else -> input.id
+                }
                 is LedgerAction.CreateAccount -> action.accountId
                 is LedgerAction.Archive -> action.accountId
                 is LedgerAction.Clear -> action.entryId
@@ -65,6 +78,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
             val receipt = CommandEntity(input.id, input.bookId, hash, primary, secondary, next)
             dao.insertCommand(receipt)
             val explanation = when (action) {
+                is LedgerAction.Plan -> (action.operation as? PlanningAction.Move)?.reason.orEmpty()
                 is LedgerAction.Reverse -> action.reason
                 is LedgerAction.Correct -> action.reason
                 is LedgerAction.Reconcile -> action.reason
@@ -72,6 +86,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
             }
             dao.insertAudit(AuditEntity(input.id, action.javaClass.simpleName, explanation, clock.millis()))
             when (action) {
+                is LedgerAction.Plan -> planning.apply(input, action.operation, snapshotInside(input.bookId))
                 is LedgerAction.CreateAccount -> {
                     identifier(action.accountId); label(action.name); currency(action.opening); date(action.date)
                     dao.insertAccount(AccountEntity(action.accountId, action.name, "INR", action.kind.name, false, input.bookId))
@@ -115,6 +130,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
                 }
             }
             // Validate all final derived positions exactly; any overflow rolls back every inserted row.
+            planning.afterLedger(input, primary, secondary)
             snapshotInside(input.bookId)
             check(dao.advance(input.bookId, book.revision, next) == 1) { "Stale book revision" }
             receipt.receipt()

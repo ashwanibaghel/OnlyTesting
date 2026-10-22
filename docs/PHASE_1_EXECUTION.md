@@ -16,9 +16,15 @@ The complete product is the delivery gate. No acceptance testing is requested fo
 
 These are implementation gates, not claims that the features are already complete. Status and measured evidence are updated as each gate is verified. The application is presented for manual acceptance only after all gates pass.
 
+## Verified backend increments
+
+- `ac38972`: pure budget/goal/recurrence engines; 20 new JVM tests; [successful CI](https://github.com/ashwanibaghel/OnlyTesting/actions/runs/39859499448).
+- Budgets/reserve/goal persistence gate: 24 additional Room tests, all original tests retained, 158 tests total; full local lint/debug gate passed. See [MILESTONE_3_BACKEND.md](MILESTONE_3_BACKEND.md) for financial policies and migration/enforcement details.
+- [Draft PR #2](https://github.com/ashwanibaghel/OnlyTesting/pull/2) is stacked on PR #1. Neither is merged. The draft does not claim Phase 1 completion.
+
 ## Design handoff
 
-The user confirmed that the final Antigravity handoff is not yet available in any branch or local folder. Backend, security, tests, clean ViewModels/state models and reusable APIs must continue. Final frontend implementation stays pending until the handoff arrives. Do not invent a final UI, describe temporary developer screens as the finished product, fabricate Antigravity approval, or request acceptance of partial screens.
+The user confirmed that the eight specifications subsequently added under `docs/design/` are **DRAFT**, not approved final designs. They may inform frontend architecture only. High-fidelity visual screens must be reviewed before consumer UI implementation resumes. Backend, security, tests, clean ViewModels/state models and reusable APIs continue independently. Do not invent a final UI, describe temporary developer screens as the finished product, fabricate Antigravity approval, or request acceptance of partial screens. The supplied draft files are preserved separately from backend changes.
 
 ## Financial policies carried forward
 

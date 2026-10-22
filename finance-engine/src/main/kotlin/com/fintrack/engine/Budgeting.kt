@@ -62,6 +62,7 @@ fun contributionDate(month: YearMonth, anchorDay: Int): LocalDate {
 }
 
 fun remainingContributionPeriods(asOf: LocalDate, deadline: LocalDate, anchorDay: Int): Int {
+    require(anchorDay in 1..31) { "Contribution day must be 1..31" }
     if (deadline.isBefore(asOf)) return 0
     var first = YearMonth.from(asOf)
     if (contributionDate(first, anchorDay).isBefore(asOf)) first = first.plusMonths(1)
