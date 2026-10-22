@@ -13,6 +13,10 @@ class AggregateTest {
         assertThrows(ArithmeticException::class.java) { sumMoney(listOf(Money(Long.MAX_VALUE, inr), Money(1, inr)), inr) }
     }
     @Test fun emptyAggregateIsExactZero() { assertEquals(Money(0, inr), sumMoney(emptyList(), inr)) }
+    @Test fun minimumBoundaryAndNegativeIntermediateCancellationStayExact() {
+        assertEquals(Money(Long.MIN_VALUE, inr), sumMoney(listOf(Long.MIN_VALUE, -1L, 1L).map { Money(it, inr) }, inr))
+        assertThrows(ArithmeticException::class.java) { sumMoney(listOf(Money(Long.MIN_VALUE, inr), Money(-1, inr)), inr) }
+    }
     @Test fun mixedCurrencyCannotHideInsideAggregate() {
         assertThrows(IllegalArgumentException::class.java) { sumMoney(listOf(Money(1, CurrencySpec("USD", 2))), inr) }
     }
