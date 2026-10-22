@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">FinTrack</string>
+    <string name="startup_subtitle">Your finances, on your device.</string>
+    <string name="startup_notice">Foundation build. Account entry and financial planning are coming in the next milestones.</string>
+    <string name="storage_checking">Checking local storage…</string>
+    <string name="storage_ready">Local storage ready. No financial records have been added by this screen.</string>
+    <string name="storage_failed">Local storage could not be opened. Existing data has been preserved. Restart the app to retry.</string>
+</resources>
