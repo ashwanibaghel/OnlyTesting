@@ -70,6 +70,34 @@ class RoomPlanningRepositoryTest {
     }
     private fun count(table: String) = db.openHelper.writableDatabase.query("SELECT COUNT(*) FROM $table").use { check(it.moveToFirst()); it.getLong(0) }
 
+    @Test fun derivedGoalOverflowRollsBackNewGoalAndAudit() = scenario {
+        plan(PlanningAction.SetGoal("max-a", "First goal", m(Long.MAX_VALUE), today, 1, m(0), today.dayOfMonth))
+        val before = snapshot(); val audits = count("audit_events")
+        rejects { plan(PlanningAction.SetGoal("max-b", "Second goal", m(Long.MAX_VALUE), today, 2, m(0), today.dayOfMonth)) }
+        assertEquals(before, snapshot()); assertEquals(audits, count("audit_events")); assertEquals(1L, count("financial_goals"))
+    }
+    @Test fun derivedSafeToSpendOverflowRollsBackActualExpenseAndAudit() = scenario {
+        plan(PlanningAction.Configure("UTC", m(Long.MAX_VALUE), m(0), 30, true))
+        val before = snapshot(); val audits = count("audit_events")
+        rejects { send(expense(2000)) }
+        assertEquals(before, snapshot()); assertEquals(audits, count("audit_events"))
+    }
+    @Test fun derivedBudgetAllowanceOverflowRollsBackLimitChange() = scenario {
+        plan(PlanningAction.SetBudget("old", "Food", month.minusMonths(1), m(1), RolloverPolicy.POSITIVE_REMAINDER))
+        plan(PlanningAction.AdvanceMonth(month)); val before = snapshot()
+        val current = before.budgets.single { it.month == month }
+        assertEquals(m(1), current.carried)
+        rejects { plan(PlanningAction.SetBudget(current.bucketId, "Food", month, m(Long.MAX_VALUE), current.rollover)) }
+        assertEquals(before, snapshot())
+    }
+    @Test fun derivedRefundBudgetOverflowRollsBackNewBudget() = scenario {
+        val receipt = send(expense(1, today.minusMonths(1)))
+        send(LedgerAction.Reverse(receipt.primaryId, today, "Actual refund this month"))
+        val before = snapshot(); val audits = count("audit_events")
+        rejects { plan(PlanningAction.SetBudget("overflow", "Food", month, m(Long.MAX_VALUE))) }
+        assertEquals(before, snapshot()); assertEquals(audits, count("audit_events"))
+    }
+
     @Test fun fundingReservesChangesOwnershipWithoutChangingActualAccounts() = scenario {
         budget(); val before = ledger.snapshot(); move("food", 300)
         val after = snapshot()

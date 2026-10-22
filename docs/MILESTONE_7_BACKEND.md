@@ -11,3 +11,5 @@ Eight new native Room cases cover overdue/history retention, failed replacement 
 The full Windows/JDK 17 gate cleaned both test outputs and passed in 3m 4s: **268 tests** (78 finance-engine JVM, 140 Room/NATIVE SQLite, 7 codec JVM and 43 ViewModel), zero failures/errors/skips. All prior 260 CI test names are retained. Lint has zero errors and 35 existing warnings; debug assembly passes. Historical/generated schemas remain unchanged. Local log: `.tools/phase1-replacement-gate.log`.
 
 Final consumer UI remains pending approved visual mockups. Unlink/relink management, investment return ownership, reporting/performance, security/backup/privacy/reminders and final product integration are still outstanding. This increment does not claim Phase 1 completion or physical-device/emulator execution.
+
+Commit `168a4a2e8a936cba363e2b7a083b6a7d8e1f73ca` also passes [CI run 39874105275](https://github.com/ashwanibaghel/OnlyTesting/actions/runs/39874105275). Downloaded report SHA-256 `6e54e03acd43dc0541b1e8391e1dd74980a130aabcbedc67c87068d69c728703` and independently parsed JUnit XML confirm all 268 tests, zero failures/errors/skips.

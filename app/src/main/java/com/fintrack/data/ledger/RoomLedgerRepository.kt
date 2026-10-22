@@ -206,7 +206,10 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
                 else -> Unit
             }
             schedules.validateContributions(input.bookId, planning.balances(input.bookId))
-            snapshotInside(input.bookId)
+            val final = snapshotInside(input.bookId)
+            val zone = db.planningDao().profile(input.bookId)?.timezone?.let(ZoneId::of) ?: clock.zone
+            // A valid individual amount must not commit a combination that makes current planning unreadable.
+            planning.read(final, input.bookId, LocalDate.now(clock.withZone(zone)))
             check(dao.advance(input.bookId, book.revision, next) == 1) { "Stale book revision" }
             receipt.receipt()
         }

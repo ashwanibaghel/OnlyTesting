@@ -85,6 +85,47 @@ class RoomScheduleRepositoryTest {
         ScheduledRule(id, "Updated bill", TransactionDraft.Expense("bank", m(amount), listOf(Split("Food", m(amount))), start),
             Recurrence(start, Frequency.MONTHLY), true)
 
+    @Test fun derivedObligationOverflowRollsBackNewRuleAndAudit() = scenario {
+        rule("max-a", Long.MAX_VALUE); val before = snapshot(); val audits = count("audit_events")
+        rejects { rule("max-b", Long.MAX_VALUE) }
+        assertEquals(before, snapshot()); assertEquals(audits, count("audit_events")); assertEquals(1L, count("scheduled_rules"))
+    }
+    private suspend fun nonLiquidRule(id: String, income: Boolean = false) {
+        val draft = if (income) TransactionDraft.Income("invest", m(100), "Interest", today)
+            else TransactionDraft.Expense("invest", m(100), listOf(Split("Food", m(100))), today)
+        schedule(ScheduleAction.Define(ScheduledRule(id, id, draft, Recurrence(today, Frequency.MONTHLY), true)))
+    }
+    @Test fun nonLiquidIncomeDoesNotInflateProjectedLiquidCash() = scenario {
+        nonLiquidRule("interest", income = true); val before = ledger.snapshot()
+        val result = schedules.forecast(DEFAULT_BOOK, today, today)
+        assertEquals(m(1000), result.cash.closing); assertTrue(result.events.isEmpty())
+        assertFalse(occurrences(today).occurrences.single().affectsLiquidCash)
+        assertEquals(before, ledger.snapshot())
+    }
+    @Test fun nonLiquidExpenseDoesNotDeductLiquidCashOrUncoveredCashObligations() = scenario {
+        nonLiquidRule("asset-fee"); val before = ledger.snapshot()
+        assertEquals(m(0), snapshot().uncoveredObligations); assertEquals(m(1000), snapshot().safeToSpend.available)
+        assertEquals(m(1000), schedules.forecast(DEFAULT_BOOK, today, today).cash.closing)
+        assertEquals(before, ledger.snapshot())
+    }
+    @Test fun nonLiquidBillCannotConsumeCashCoverageNeededByLiquidBill() = scenario {
+        fundedCategory(100); nonLiquidRule("a-asset-fee"); rule("z-bank-bill")
+        val result = occurrences(today)
+        assertEquals(m(0), snapshot().uncoveredObligations)
+        assertEquals(m(100), result.occurrences.single { it.ruleId == "z-bank-bill" }.covered)
+        assertEquals(m(0), result.occurrences.single { it.ruleId == "a-asset-fee" }.covered)
+        assertFalse(result.occurrences.single { it.ruleId == "a-asset-fee" }.affectsLiquidCash)
+        assertTrue(result.occurrences.single { it.ruleId == "z-bank-bill" }.affectsLiquidCash)
+    }
+    @Test fun nonLiquidConfirmationRemainsActualWithoutInventingLiquidMovement() = scenario {
+        nonLiquidRule("asset-fee"); val projection = schedules.forecast(DEFAULT_BOOK, today, today)
+        schedule(ScheduleAction.Confirm("asset-fee", today, today, Clearing.PENDING))
+        assertEquals(m(1000), projection.cash.closing)
+        assertEquals(m(1000), ledger.snapshot().liquid); assertEquals(m(-100), ledger.snapshot().accounts.single { it.id == "invest" }.posted)
+        assertEquals(m(100), ledger.snapshot().expense); assertEquals(m(0), snapshot().uncoveredObligations)
+        assertEquals(m(1000), schedules.forecast(DEFAULT_BOOK, today, today).cash.closing)
+    }
+
     @Test fun replacementKeepsOldOverdueBillsAndChangesOnlyFuturePlan() = scenario {
         rule(start = today.minusMonths(1)); val before = ledger.snapshot()
         val receipt = schedule(ScheduleAction.Replace("bill", replacement(), "New amount from today"))

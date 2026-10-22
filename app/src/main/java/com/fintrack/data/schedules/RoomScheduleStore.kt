@@ -59,15 +59,21 @@ internal class RoomScheduleStore(private val db: FinTrackDatabase, private val c
         require(through >= asOf && ChronoUnit.DAYS.between(asOf, through) <= 3660) { "Choose a planning horizon up to ten years" }
         val rules = rules(book)
         val records = resolved(book)
+        val liquidAccounts = db.ledgerDao().accounts(book).filter { it.kind != AccountKind.INVESTMENT.name }.map { it.id }.toSet()
         val pending = mutableListOf<ScheduledOccurrence>()
         val seen = mutableSetOf<Pair<String, LocalDate>>()
         fun add(rule: ScheduledRule, date: LocalDate, record: ScheduleOccurrenceEntity?) {
             if (!seen.add(rule.id to date)) return
             require(pending.size < 100_000) { "Too many unresolved planned occurrences; narrow the planning range or resolve old schedules" }
-            pending += ScheduledOccurrence("${rule.id}@$date", rule.id, rule.name, date,
-                record?.confirmedTemplate?.let(TemplateCodec::decode) ?: rule.template,
+            val template = record?.confirmedTemplate?.let(TemplateCodec::decode) ?: rule.template
+            val accountId = when (template) {
+                is TransactionDraft.Income -> template.accountId
+                is TransactionDraft.Expense -> template.accountId
+                else -> error("Unsupported recurring template")
+            }
+            pending += ScheduledOccurrence("${rule.id}@$date", rule.id, rule.name, date, template,
                 rule.mandatory, record?.let { OccurrenceStatus.valueOf(it.status) } ?: OccurrenceStatus.AWAITING_CONFIRMATION,
-                record?.journalId, m(0), m(0))
+                record?.journalId, m(0), m(0), accountId in liquidAccounts)
         }
         for (rule in rules) {
             for (date in dates(rule, rule.recurrence.start, through)) {
@@ -92,7 +98,8 @@ internal class RoomScheduleStore(private val db: FinTrackDatabase, private val c
     }
 
     fun obligations(items: List<ScheduledOccurrence>, buckets: List<ReserveBucket>, asOf: LocalDate): List<Obligation> =
-        items.filter { it.status in listOf(OccurrenceStatus.AWAITING_CONFIRMATION, OccurrenceStatus.REOPENED) && it.mandatory && it.template is TransactionDraft.Expense }
+        items.filter { it.status in listOf(OccurrenceStatus.AWAITING_CONFIRMATION, OccurrenceStatus.REOPENED) &&
+            it.affectsLiquidCash && it.mandatory && it.template is TransactionDraft.Expense }
             .flatMap { item ->
                 val draft = item.template as TransactionDraft.Expense
                 draft.splits.groupBy { it.category }.map { (category, splits) ->

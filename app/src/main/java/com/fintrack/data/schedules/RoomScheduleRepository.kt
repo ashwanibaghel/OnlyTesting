@@ -27,7 +27,7 @@ class RoomScheduleRepository(private val db: FinTrackDatabase, private val ledge
     override suspend fun forecast(bookId: String, asOf: LocalDate, through: LocalDate): CashFlowProjection = db.withTransaction {
         val current = planning.read(ledger.snapshot(bookId), bookId, asOf)
         val scheduled = store.read(bookId, asOf, through, current.buckets)
-        val events = scheduled.occurrences.filter { it.status in listOf(OccurrenceStatus.AWAITING_CONFIRMATION, OccurrenceStatus.REOPENED) }.mapNotNull { item ->
+        val events = scheduled.occurrences.filter { it.affectsLiquidCash && it.status in listOf(OccurrenceStatus.AWAITING_CONFIRMATION, OccurrenceStatus.REOPENED) }.mapNotNull { item ->
             val date = maxOf(asOf, item.scheduledDate)
             when (val draft = item.template) {
                 is com.fintrack.domain.ledger.TransactionDraft.Income ->
@@ -38,6 +38,7 @@ class RoomScheduleRepository(private val db: FinTrackDatabase, private val ledge
         }
         val assumptions = listOf(
             "Opening money is actual posted liquid assets; manually confirmed pending activity is already included once.",
+            "Planned activity directly in non-liquid investment accounts is excluded from liquid cash events and liquid obligation coverage; it remains separately identified schedule activity.",
             "Unconfirmed scheduled income is assumed only on future/current due dates and is not guaranteed or current spendable money.",
             "Unpaid scheduled expenses are assumed on their due date; overdue expenses occur at the projection start. Overdue income is excluded.",
             "Outflows precede inflows on the same day. No market returns, trading profits, taxes, new fees or unscheduled activity are assumed.",

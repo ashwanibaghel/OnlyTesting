@@ -26,6 +26,7 @@ These are implementation gates, not claims that the features are already complet
 - Atomic setup/current-day session APIs: 22 new native Room cases; 236 tests pass with zero failures/errors/skips, full lint/debug gate and unchanged schemas. All prior 214 test names retained. See [MILESTONE_5_BACKEND.md](MILESTONE_5_BACKEND.md).
 - Reusable financial workflow ViewModel: 24 new behavior cases; 260 tests pass, full lint/debug gate and unchanged schemas. Exact reviewed values, form-specific retries, lost acknowledgement and duplicate-submission protections are ready for eventual frontend integration. See [MILESTONE_6_BACKEND.md](MILESTONE_6_BACKEND.md).
 - Atomic recurring-plan replacement: 8 new native Room cases, 268 tests pass, full lint/debug gate and unchanged schemas. Original rules, reviewed decisions and actual history are retained. See [MILESTONE_7_BACKEND.md](MILESTONE_7_BACKEND.md).
+- Current planning/forecast consistency fixes: 9 independently reproduced native Room regressions now pass; full gate has 277 passing tests, unchanged schemas and retained prior tests. Derived current planning overflow rolls back the whole command; non-liquid schedules do not fabricate liquid cash or consume its coverage. See [MILESTONE_8_BACKEND.md](MILESTONE_8_BACKEND.md).
 
 ## Design handoff
 

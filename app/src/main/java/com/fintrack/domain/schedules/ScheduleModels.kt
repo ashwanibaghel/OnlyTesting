@@ -12,7 +12,7 @@ data class ScheduledRule(val id: String, val name: String, val template: Transac
 enum class OccurrenceStatus { AWAITING_CONFIRMATION, REOPENED, CONFIRMED, SKIPPED }
 data class ScheduledOccurrence(val key: String, val ruleId: String, val name: String, val scheduledDate: LocalDate,
     val template: TransactionDraft, val mandatory: Boolean, val status: OccurrenceStatus,
-    val journalId: String?, val covered: Money, val uncovered: Money)
+    val journalId: String?, val covered: Money, val uncovered: Money, val affectsLiquidCash: Boolean)
 data class ScheduleSnapshot(val revision: Long, val asOf: LocalDate, val through: LocalDate,
     val rules: List<ScheduledRule>, val occurrences: List<ScheduledOccurrence>, val uncoveredObligations: Money)
 data class CashFlowProjection(val revision: Long, val asOf: LocalDate, val through: LocalDate,
