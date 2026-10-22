@@ -42,4 +42,21 @@ data class Money(val minor: Long, val currency: CurrencySpec) {
 }
 
 internal fun exactSum(values: Iterable<Long>): Long =
-    values.fold(BigInteger.ZERO) { sum, value -> sum + BigInteger.valueOf(value) }.longValueExact()
+    values.fold(BigInteger.ZERO) { sum, value -> sum + BigInteger.valueOf(value) }.toLongChecked()
+
+/** BigInteger.longValueExact is Android API 31; this remains exact on our API 26 baseline. */
+internal fun BigInteger.toLongChecked(): Long {
+    if (this < BigInteger.valueOf(Long.MIN_VALUE) || this > BigInteger.valueOf(Long.MAX_VALUE)) {
+        throw ArithmeticException("Amount exceeds signed 64-bit minor-unit range")
+    }
+    return toLong()
+}
+
+/** Aggregate exactly before checking final bounds; never use SQLite REAL or floating point. */
+fun sumMoney(values: Iterable<Money>, currency: CurrencySpec): Money {
+    val amounts = values.map {
+        require(it.currency == currency) { "Mixed currencies in aggregate" }
+        it.minor
+    }
+    return Money(exactSum(amounts), currency)
+}

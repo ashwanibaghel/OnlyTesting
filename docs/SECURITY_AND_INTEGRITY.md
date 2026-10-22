@@ -8,7 +8,7 @@ Reconciliation compares statement balance with posted account balance as of an e
 
 ## Foundation security posture
 
-No INTERNET permission, authentication, backend, analytics, finance logging or financial fixtures in the startup UI. Room database and preferences remain in app-private storage under Android's device protection. **Room does not itself encrypt the database.** Full device access, root and unlocked-device compromise remain outside this initial protection. Do not claim application-level encryption until implemented and tested. Production app lock/database encryption and recovery are release decisions; biometric access alone is not portable backup encryption.
+No INTERNET permission, authentication, backend, analytics, finance logging or seeded financial fixtures. Milestone 2 accepts real manual financial records; Room database and preferences remain in app-private storage under Android's device protection. **Room does not itself encrypt the database.** Full device access, root and unlocked-device compromise remain outside this initial protection. Do not claim application-level encryption until implemented and tested. Production app lock/database encryption and recovery are release decisions; biometric access alone is not portable backup encryption.
 
 Disable Android automatic cloud backup and device-to-device app-data transfer through manifest plus XML exclusion rules; financial exports must be deliberate. Private data must never enter CI artifacts or version control. Capture only synthetic data in tests. Future notifications use generic private-lockscreen text by default. App lock must handle process restart, timeout, screenshots and accessibility thoughtfully.
 
