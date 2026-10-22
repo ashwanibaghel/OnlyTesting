@@ -18,6 +18,8 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
     private fun id(value: String) { require(value.matches(Regex("[A-Za-z0-9_-]{1,100}"))) { "Invalid planning identifier" } }
     private fun label(value: String) { require(value.isNotBlank() && value == value.trim() && value.length <= 100) { "Name/category must be trimmed and 1..100 characters" } }
     private fun nonnegative(value: Money) { require(value.currency == INR && value.minor >= 0) { "Expected a nonnegative INR amount" } }
+    private suspend fun today(book: String): LocalDate =
+        LocalDate.now(clock.withZone(dao.profile(book)?.timezone?.let(ZoneId::of) ?: clock.zone))
 
     suspend fun balances(book: String): Map<String, Money> = dao.legs(book).filter { it.bucketId != null }
         .groupBy { requireNotNull(it.bucketId) }.mapValues { (_, legs) -> sumMoney(legs.map { m(it.minor) }, INR) }
@@ -102,7 +104,7 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
             is PlanningAction.Move -> {
                 nonnegative(action.amount)
                 require(action.amount.minor > 0 && action.sourceId != action.destinationId && action.reason.isNotBlank() && action.reason.length <= 500) { "A positive move and explicit reason are required" }
-                val snapshot = read(ledger, book, LocalDate.now(clock))
+                val snapshot = read(ledger, book, today(book))
                 val source = action.sourceId?.let { sourceId -> requireNotNull(snapshot.buckets.firstOrNull { it.id == sourceId && !it.archived }) { "Source reserve not available" } }
                 if (action.destinationId != null) require(snapshot.buckets.any { it.id == action.destinationId && !it.archived }) { "Destination reserve not available" }
                 require(action.amount.minor <= (source?.funded ?: snapshot.reservations.unassigned).minor) { "Not enough funded/unassigned money" }
@@ -110,7 +112,7 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
                     val expected = diversion(snapshot, source.id, action.destinationId, action.amount).consent
                     require(action.consent == expected) { "Protected money requires a current reviewed diversion confirmation" }
                 }
-                allocation(command, "MOVE", LocalDate.now(clock), action.reason, action.sourceId, action.destinationId, action.amount)
+                allocation(command, "MOVE", today(book), action.reason, action.sourceId, action.destinationId, action.amount)
             }
             is PlanningAction.Configure -> {
                 ZoneId.of(action.timezone); nonnegative(action.safetyBuffer); nonnegative(action.monthlyCapacity)
@@ -137,10 +139,10 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
     }
 
     private suspend fun advanceMonth(command: LedgerCommand, through: YearMonth, ledger: LedgerSnapshot) {
-        require(through.year in 1..9999 && through <= YearMonth.now(clock)) { "Cannot close future budget periods" }
+        require(through.year in 1..9999 && through <= YearMonth.from(today(command.bookId))) { "Cannot close future budget periods in the book timezone" }
         var steps = 0
         while (true) {
-            val snapshot = read(ledger, command.bookId, LocalDate.now(clock))
+            val snapshot = read(ledger, command.bookId, today(command.bookId))
             val previous = snapshot.budgets.filter { !it.closed && it.month < through }.minByOrNull { it.month } ?: break
             require(++steps <= 2400) { "Advance budgets in smaller date ranges" }
             val nextMonth = previous.month.plusMonths(1)
@@ -148,7 +150,7 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
             if (next == null) {
                 val newId = uid()
                 setBudget(command.bookId, PlanningAction.SetBudget(newId, previous.category, nextMonth, previous.limit, previous.rollover))
-                next = read(ledger, command.bookId, LocalDate.now(clock)).budgets.single { it.bucketId == newId }
+                next = read(ledger, command.bookId, today(command.bookId)).budgets.single { it.bucketId == newId }
             }
             val nextEntity = dao.budgets(command.bookId).single { it.bucketId == next.bucketId }
             check(!nextEntity.closed) { "Cannot roll ownership into a closed budget" }

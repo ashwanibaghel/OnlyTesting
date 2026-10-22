@@ -12,6 +12,7 @@ import com.fintrack.engine.validateJournal
 import java.math.BigInteger
 import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -23,7 +24,10 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
     private fun money(value: Long) = Money(value, INR)
     private fun identifier(value: String) { require(value.matches(Regex("[A-Za-z0-9_-]{1,100}"))) { "Invalid identifier" } }
     private fun label(value: String) { require(value.isNotBlank() && value == value.trim() && value.length <= 100) { "Name/category must be trimmed and 1..100 characters" } }
-    private fun date(value: LocalDate) { require(value.year in 1..9999 && !value.isAfter(LocalDate.now(clock))) { "Actual entries cannot have future or unsupported dates" } }
+    private suspend fun date(book: String, value: LocalDate) {
+        val zone = db.planningDao().profile(book)?.timezone?.let(ZoneId::of) ?: clock.zone
+        require(value.year in 1..9999 && !value.isAfter(LocalDate.now(clock.withZone(zone)))) { "Actual entries cannot have future or unsupported dates in the book timezone" }
+    }
     private fun reason(value: String) { require(value.isNotBlank() && value.length <= 500) { "A correction/reconciliation reason is required (1..500 characters)" } }
     private fun currency(value: Money) { require(value.currency == INR) { "This book supports INR with two minor digits only" } }
 
@@ -88,7 +92,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
             when (action) {
                 is LedgerAction.Plan -> planning.apply(input, action.operation, snapshotInside(input.bookId))
                 is LedgerAction.CreateAccount -> {
-                    identifier(action.accountId); label(action.name); currency(action.opening); date(action.date)
+                    identifier(action.accountId); label(action.name); currency(action.opening); date(input.bookId, action.date)
                     dao.insertAccount(AccountEntity(action.accountId, action.name, "INR", action.kind.name, false, input.bookId))
                     dao.insertLedgerAccount(LedgerAccountEntity(action.accountId, input.bookId, action.accountId, "ASSET", action.name))
                     if (action.opening.minor != 0L) {
@@ -108,14 +112,14 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
                     postDraft(input, primary, action.replacement, action.reason)
                 }
                 is LedgerAction.Clear -> {
-                    date(action.date)
+                    date(input.bookId, action.date)
                     val original = original(input.bookId, action.entryId)
                     require(original.clearedDate == null && original.kind != "REVERSAL" && original.reversedBy == null) { "Entry cannot be cleared" }
                     require(!action.date.isBefore(original.effectiveDate)) { "Clearing predates transaction" }
                     dao.insertClearing(ClearingEntity(action.entryId, input.id, action.date.toString()))
                 }
                 is LedgerAction.Reconcile -> {
-                    reason(action.reason); date(action.statementDate)
+                    reason(action.reason); date(input.bookId, action.statementDate)
                     account(input.bookId, action.accountId)
                     val preview = reconciliation(input.bookId, action.accountId, action.statementDate, action.statement, action.basis)
                     val adjustment = if (preview.difference.minor != 0L) id() else null
@@ -157,7 +161,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
     }
 
     private suspend fun postDraft(command: LedgerCommand, entryId: String, draft: TransactionDraft, reason: String = "") {
-        date(draft.date)
+        date(command.bookId, draft.date)
         require(draft.memo.length <= 500) { "Memo is too long" }
         val legs = mutableListOf<Posting>()
         val kind = when (draft) {
@@ -207,7 +211,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
         requireNotNull(snapshotInside(book).history.firstOrNull { it.id == entryId }) { "Transaction is missing or belongs to another book" }
 
     private suspend fun reverse(command: LedgerCommand, id: String, originalId: String, at: LocalDate, why: String) {
-        reason(why); date(at)
+        reason(why); date(command.bookId, at)
         val entry = original(command.bookId, originalId)
         require(entry.kind != "REVERSAL" && entry.reversedBy == null) { "Entry already reversed or is itself a reversal" }
         require(!at.isBefore(entry.effectiveDate) && (entry.clearedDate == null || !at.isBefore(entry.clearedDate))) { "Reversal predates original or clearing" }
@@ -268,7 +272,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
 
     private suspend fun reconciliation(bookId: String, accountId: String, at: LocalDate,
         statement: Money, basis: BalanceBasis): ReconciliationPreview {
-        currency(statement); date(at); account(bookId, accountId, allowArchived = true)
+        currency(statement); date(bookId, at); account(bookId, accountId, allowArchived = true)
         val snapshot = snapshotInside(bookId)
         val entries = snapshot.history.filter { !it.effectiveDate.isAfter(at) }
         val posted = sumMoney(entries.flatMap { it.legs }.filter { it.accountId == accountId }.map { it.amount }, INR)

@@ -24,7 +24,7 @@ These are implementation gates, not claims that the features are already complet
 
 ## Design handoff
 
-The user confirmed that the eight specifications subsequently added under `docs/design/` are **DRAFT**, not approved final designs. They may inform frontend architecture only. High-fidelity visual screens must be reviewed before consumer UI implementation resumes. Backend, security, tests, clean ViewModels/state models and reusable APIs continue independently. Do not invent a final UI, describe temporary developer screens as the finished product, fabricate Antigravity approval, or request acceptance of partial screens. The supplied draft files are preserved separately from backend changes.
+The user verified design branch commit `8ab65cbc405f2d9bec30b0b2cc0ed4c5e6a53630` and approved its eight specifications as **engineering reference specifications only**, not final visual designs. Design-only commit `343d4bf` imported exactly those eight blobs without merging unrelated code or changing existing uncommitted financial work. High-fidelity visual screens must still be reviewed before consumer UI implementation resumes. Backend, security, tests, clean ViewModels/state models and reusable APIs continue independently. Do not invent a final UI, describe temporary developer screens as the finished product, fabricate final visual approval, or request acceptance of partial screens.
 
 ## Financial policies carried forward
 

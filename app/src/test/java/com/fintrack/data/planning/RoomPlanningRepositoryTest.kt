@@ -238,6 +238,32 @@ class RoomPlanningRepositoryTest {
         assertEquals("Asia/Kolkata", snapshot().profile.timezone)
         assertTrue(snapshot().profile.setupComplete)
     }
+    @Test fun actualDatesAndDiversionConsentUseBookTimezoneAcrossUtcMidnight() = scenario {
+        plan(PlanningAction.Configure("Pacific/Kiritimati", m(0), m(300), 30, true))
+        send(LedgerAction.Post(TransactionDraft.Income("bank", m(100), "Salary", today.plusDays(1))))
+        goal(); move("goal", 300)
+        val staleDate = planning.previewDiversion(DEFAULT_BOOK, "goal", null, m(100), today)
+        rejects { move(null, 100, "goal", staleDate.consent) }
+        val review = planning.previewDiversion(DEFAULT_BOOK, "goal", null, m(100), today.plusDays(1))
+        move(null, 100, "goal", review.consent)
+        assertEquals(m(200), snapshot().reservations.reserved)
+    }
+    @Test fun actualFutureDateInBookTimezoneIsRejectedEvenIfUtcDateAllowsIt() = scenario {
+        val boundary = Clock.fixed(Instant.parse("2026-10-23T00:30:00Z"), ZoneOffset.UTC)
+        ledger = RoomLedgerRepository(db, boundary)
+        plan(PlanningAction.Configure("Pacific/Honolulu", m(0), m(0), 30, true))
+        val before = ledger.snapshot()
+        rejects { send(LedgerAction.Post(TransactionDraft.Income("bank", m(100), "Salary", today))) }
+        assertEquals(before, ledger.snapshot())
+        send(LedgerAction.Post(TransactionDraft.Income("bank", m(100), "Salary", today.minusDays(1))))
+    }
+    @Test fun rolloverCannotCloseFutureBookMonthAtUtcMonthBoundary() = scenario {
+        ledger = RoomLedgerRepository(db, Clock.fixed(Instant.parse("2026-11-01T00:30:00Z"), ZoneOffset.UTC))
+        plan(PlanningAction.Configure("Pacific/Honolulu", m(0), m(0), 30, true))
+        budget(); val before = ledger.snapshot()
+        rejects { plan(PlanningAction.AdvanceMonth(month.plusMonths(1))) }
+        assertEquals(before, ledger.snapshot())
+    }
     @Test fun reconciliationCanExposeReserveDeficitWithoutSilentlyDivertingSavings() = scenario {
         goal(); move("goal", 800)
         send(LedgerAction.Reconcile("bank", today, m(500), BalanceBasis.POSTED, "Actual statement"))

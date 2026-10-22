@@ -38,3 +38,15 @@ Full Gradle tests/lint/debug build passed on Windows/JDK 17 (`BUILD SUCCESSFUL i
 The new persisted cases cover conservation, target-versus-funding, insufficient funding rollback, partial/split spending, fees, same/closed-period refunds, atomic corrections, injected failure, both rollover policies, protected persistence, exact/stale diversion, reserve moves, receipt retries, concurrent funding, reopen/immutability, cross-book/currency rejection, disjoint buffer, deficits and populated-v2 migration. Initial fixture parsing of optional index metadata was corrected; no financial assertion was removed or suppressed.
 
 No physical-device, emulator or consumer UI testing is claimed. Subsequent recurrence, investment, forecast, backup/security, performance and final UI gates remain outstanding. See `PHASE_1_EXECUTION.md` and draft PR #2 for current source/CI links.
+
+## Book timezone and independent repeat verification
+
+Actual posting dates, statement validation, protected diversion confirmation dates and monthly rollover now use the configured book timezone, falling back to the injected clock zone only for legacy/unconfigured books. Three additional Room cases cover a book date ahead of UTC, a book date behind UTC and a UTC month boundary that is still the previous book month. Prior transaction dates are retained without reinterpretation.
+
+Both JVM and Android-host test outputs were cleaned before an independent full run. The measured result is **72 finance-engine + 43 original Room + 27 planning Room + 19 ViewModel = 161 passed**, zero failures/errors/skips. This is independently measured, not the separately reported Antigravity count of 71. Windows file locks did not block Android-host execution in this run. Lint passed with zero errors and the same 35 warnings; debug assembly passed; v1/v2/v3 schema bytes remained unchanged. Full command completed in 2m 32s:
+
+```powershell
+.\gradlew.bat --max-workers=1 '-Dorg.gradle.jvmargs=-Xmx1536m -Dfile.encoding=UTF-8' :finance-engine:cleanTest :app:cleanTestDebugUnitTest :finance-engine:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --console=plain
+```
+
+These are host automated checks. The resulting developer APK is CI/build evidence, not a request for acceptance of incomplete screens. Consumer UI and overall Phase 1 completion remain pending the remaining implementation gates and reviewed high-fidelity visual mockups.
