@@ -81,6 +81,73 @@ class RoomScheduleRepositoryTest {
     }
     private fun count(table: String) = db.openHelper.writableDatabase.query("SELECT COUNT(*) FROM $table").use { check(it.moveToFirst()); it.getLong(0) }
 
+    private fun replacement(id: String = "new-bill", start: LocalDate = today, amount: Long = 150) =
+        ScheduledRule(id, "Updated bill", TransactionDraft.Expense("bank", m(amount), listOf(Split("Food", m(amount))), start),
+            Recurrence(start, Frequency.MONTHLY), true)
+
+    @Test fun replacementKeepsOldOverdueBillsAndChangesOnlyFuturePlan() = scenario {
+        rule(start = today.minusMonths(1)); val before = ledger.snapshot()
+        val receipt = schedule(ScheduleAction.Replace("bill", replacement(), "New amount from today"))
+        val result = occurrences(); assertEquals(2, result.rules.size)
+        assertEquals(today, result.rules.single { it.id == "bill" }.stoppedFrom)
+        assertEquals(m(100), result.occurrences.single { it.ruleId == "bill" }.template.let { (it as TransactionDraft.Expense).amount })
+        assertEquals(today.minusMonths(1), result.occurrences.single { it.ruleId == "bill" }.scheduledDate)
+        assertTrue(result.occurrences.filter { it.ruleId == "new-bill" }.all { (it.template as TransactionDraft.Expense).amount == m(150) })
+        assertEquals(before.accounts, ledger.snapshot().accounts); assertEquals(before.history, ledger.snapshot().history)
+        assertEquals(before.revision + 1, receipt.revision); assertEquals("new-bill", receipt.primaryId); assertEquals("bill", receipt.secondaryId)
+    }
+    @Test fun invalidReplacementRollsBackStopCommandAndAudit() = scenario {
+        rule(); val before = occurrences(); val revision = ledger.snapshot().revision; val audits = count("audit_events")
+        rejects { schedule(ScheduleAction.Replace("bill", replacement().copy(name = " "), "Invalid replacement")) }
+        assertEquals(before, occurrences()); assertEquals(revision, ledger.snapshot().revision); assertEquals(audits, count("audit_events"))
+    }
+    @Test fun replacementRetryReturnsReceiptWithoutExtraRuleOrPosting() = scenario {
+        rule(); val request = command(LedgerAction.Schedule(ScheduleAction.Replace("bill", replacement(), "Updated bill")))
+        val receipt = ledger.execute(request); val before = snapshot()
+        assertEquals(receipt, ledger.execute(request)); assertEquals(before, snapshot()); assertEquals(2L, count("scheduled_rules"))
+        val audits = count("audit_events")
+        rejects { schedule(ScheduleAction.Replace("bill", replacement(), "Duplicate replacement")) }
+        assertEquals(before, snapshot()); assertEquals(audits, count("audit_events"))
+    }
+    @Test fun replacementCannotDuplicateAnEarlyConfirmedFutureBill() = scenario {
+        rule(start = today.plusDays(1)); schedule(ScheduleAction.Confirm("bill", today.plusDays(1), today, Clearing.CLEARED))
+        val before = occurrences(); val actual = ledger.snapshot()
+        rejects { schedule(ScheduleAction.Replace("bill", replacement(start = today.plusDays(1)), "Changed after prepayment")) }
+        assertEquals(before, occurrences()); assertEquals(actual, ledger.snapshot())
+    }
+    @Test fun replacementCannotResurrectSkippedOrReopenedFutureDecisions() = scenario {
+        rule(start = today.plusDays(1)); schedule(ScheduleAction.Skip("bill", today.plusDays(1), "Cancelled bill"))
+        val before = occurrences()
+        rejects { schedule(ScheduleAction.Replace("bill", replacement(start = today.plusDays(1)), "New price")) }
+        assertEquals(before, occurrences())
+        schedule(ScheduleAction.Reopen("bill", today.plusDays(1), "Mistaken skip")); val reopened = occurrences()
+        rejects { schedule(ScheduleAction.Replace("bill", replacement(start = today.plusDays(1)), "New price")) }
+        assertEquals(reopened, occurrences())
+    }
+    @Test fun replacementPreservesEarlierConfirmationAndCannotRewritePastPlan() = scenario {
+        rule(); val paid = schedule(ScheduleAction.Confirm("bill", today, today, Clearing.PENDING))
+        val history = ledger.snapshot().history
+        rejects { schedule(ScheduleAction.Replace("bill", replacement(start = today.minusDays(1)), "Backdated replacement")) }
+        schedule(ScheduleAction.Replace("bill", replacement(start = today.plusDays(1)), "Changed tomorrow"))
+        val result = occurrences(); assertEquals(paid.primaryId, result.occurrences.single { it.ruleId == "bill" }.journalId)
+        assertEquals(OccurrenceStatus.CONFIRMED, result.occurrences.single { it.ruleId == "bill" }.status)
+        assertEquals(history, ledger.snapshot().history)
+    }
+    @Test fun replacementCannotReuseIdentityOrExtendAnAlreadyStoppedPlan() = scenario {
+        rule(); rejects { schedule(ScheduleAction.Replace("bill", replacement("bill"), "Reuse identity")) }
+        schedule(ScheduleAction.Stop("bill", today, "Stopped")); val before = occurrences()
+        rejects { schedule(ScheduleAction.Replace("bill", replacement(start = today.plusDays(1)), "Extend stopped rule")) }
+        assertEquals(before, occurrences())
+    }
+    @Test fun replacementPersistsAcrossReopenAndChangedPayloadCannotReuseKey() = scenario {
+        rule(); val request = command(LedgerAction.Schedule(ScheduleAction.Replace("bill", replacement(), "Updated price")))
+        val receipt = ledger.execute(request); val before = occurrences()
+        db.close(); db = open(); repositories()
+        assertEquals(before, occurrences()); assertEquals(receipt, ledger.execute(request))
+        rejects { ledger.execute(request.copy(action = LedgerAction.Schedule(ScheduleAction.Replace("bill", replacement(amount = 200), "Updated price")))) }
+        assertEquals(before, occurrences())
+    }
+
     @Test fun definingSchedulesNeverPostsExpectedMoneyOrChangesActualBalances() = scenario {
         val before = ledger.snapshot(); rule(); rule("salary", 500, income = true)
         assertEquals(before.accounts, ledger.snapshot().accounts); assertEquals(before.history, ledger.snapshot().history)

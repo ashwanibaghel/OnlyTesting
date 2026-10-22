@@ -62,6 +62,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
                 is LedgerAction.Setup -> input.bookId
                 is LedgerAction.Schedule -> when (val operation = action.operation) {
                     is ScheduleAction.Define -> operation.rule.id
+                    is ScheduleAction.Replace -> operation.replacement.id
                     is ScheduleAction.Stop -> operation.ruleId
                     is ScheduleAction.LinkExisting -> operation.journalId
                     else -> id()
@@ -78,12 +79,17 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
                 is LedgerAction.Reconcile -> input.id
                 else -> id()
             }
-            val secondary = if (action is LedgerAction.Correct) id() else null
+            val secondary = when {
+                action is LedgerAction.Correct -> id()
+                action is LedgerAction.Schedule && action.operation is ScheduleAction.Replace -> action.operation.ruleId
+                else -> null
+            }
             val receipt = CommandEntity(input.id, input.bookId, hash, primary, secondary, next)
             dao.insertCommand(receipt)
             val explanation = when (action) {
                 is LedgerAction.Schedule -> when (val operation = action.operation) {
                     is ScheduleAction.Stop -> operation.reason
+                    is ScheduleAction.Replace -> operation.reason
                     is ScheduleAction.Skip -> operation.reason
                     is ScheduleAction.Reopen -> operation.reason
                     is ScheduleAction.LinkExisting -> operation.reason
@@ -123,6 +129,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
                 }
                 is LedgerAction.Schedule -> when (val operation = action.operation) {
                     is ScheduleAction.Define -> schedules.define(input, operation.rule)
+                    is ScheduleAction.Replace -> schedules.replace(input, operation)
                     is ScheduleAction.Stop -> schedules.stop(input, operation)
                     is ScheduleAction.Skip -> schedules.skip(input, operation)
                     is ScheduleAction.Reopen -> schedules.reopen(input, operation)

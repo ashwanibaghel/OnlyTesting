@@ -16,6 +16,7 @@ internal fun writeSchedule(out: DataOutputStream, action: ScheduleAction) {
             out.writeBoolean(rule.mandatory); out.writeBoolean(rule.stoppedFrom != null); rule.stoppedFrom?.let { text(it.toString()) }
         }
         is ScheduleAction.Stop -> { text("stop"); text(action.ruleId); text(action.effectiveFrom.toString()); text(action.reason) }
+        is ScheduleAction.Replace -> { text("replace-v1"); text(action.ruleId); writeSchedule(out, ScheduleAction.Define(action.replacement)); text(action.reason) }
         is ScheduleAction.Confirm -> {
             text("confirm"); text(action.ruleId); text(action.scheduledDate.toString()); text(action.actualDate.toString()); text(action.clearing.name)
             out.writeBoolean(action.actualAmount != null); action.actualAmount?.let(::money)

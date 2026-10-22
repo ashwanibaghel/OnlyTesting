@@ -25,6 +25,7 @@ data class PurchaseImpact(val revision: Long, val amount: Money, val date: Local
 
 sealed interface ScheduleAction {
     data class Define(val rule: ScheduledRule) : ScheduleAction
+    data class Replace(val ruleId: String, val replacement: ScheduledRule, val reason: String) : ScheduleAction
     data class Stop(val ruleId: String, val effectiveFrom: LocalDate, val reason: String) : ScheduleAction
     data class Confirm(val ruleId: String, val scheduledDate: LocalDate,
         val actualDate: LocalDate, val clearing: Clearing, val actualAmount: Money? = null) : ScheduleAction

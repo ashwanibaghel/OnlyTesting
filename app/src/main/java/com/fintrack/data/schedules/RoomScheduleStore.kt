@@ -131,6 +131,17 @@ internal class RoomScheduleStore(private val db: FinTrackDatabase, private val c
         dao.insertExceptions(rule.recurrence.exceptions.sorted().map { ScheduleExceptionEntity(rule.id, it.toString()) })
     }
 
+    suspend fun replace(command: LedgerCommand, action: ScheduleAction.Replace) {
+        val start = action.replacement.recurrence.start
+        require(action.ruleId != action.replacement.id) { "Replacement must retain the old rule and use a new identity" }
+        require(resolved(command.bookId).values.none {
+            it.ruleId == action.ruleId && LocalDate.parse(it.scheduledDate) >= start
+        }) { "Start after existing reviewed occurrences so replacement cannot duplicate or resurrect their decisions" }
+        // These mutations share the caller's transaction: an invalid replacement cannot leave the old plan stopped.
+        stop(command, ScheduleAction.Stop(action.ruleId, start, action.reason))
+        define(command, action.replacement)
+    }
+
     suspend fun stop(command: LedgerCommand, action: ScheduleAction.Stop) {
         require(action.reason.isNotBlank() && action.reason.length <= 500 && action.effectiveFrom >= today(command.bookId)) { "Stopping requires a reason and cannot erase past due obligations" }
         val rule = requireNotNull(rules(command.bookId).firstOrNull { it.id == action.ruleId }) { "Schedule not found" }

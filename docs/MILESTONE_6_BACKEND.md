@@ -27,3 +27,5 @@ Twenty-four new JVM ViewModel behavior cases exercise invalid-input/preview fail
 The complete Windows/JDK 17 clean gate passes in 3m 21s: **260 tests** (78 finance-engine JVM, 132 Room/NATIVE SQLite, 7 codec JVM and 43 ViewModel), retaining all 236 previous CI test names, with zero failures/errors/skips. Lint reports zero errors and 35 existing warnings; debug assembly passes. The local log is `.tools/phase1-workflow-gate.log`. All historical/compiler-generated schemas remain unchanged.
 
 No physical-device, emulator or rendered Compose testing is claimed. Reports/performance, remaining investment/schedule management, security/backup/privacy/reminders and final consumer UI remain outstanding.
+
+Commit `d53319e2f03c82ab91c9316fb9bcf98c85d36763` also passes [CI run 39873139064](https://github.com/ashwanibaghel/OnlyTesting/actions/runs/39873139064). Downloaded report artifact SHA-256 `56ebae8cd60b381d84d1cf4671fa7c171062d43713f6001319ac08ff174886dd` and independently parsed JUnit XML confirm 260 tests, zero failures/errors/skips.
