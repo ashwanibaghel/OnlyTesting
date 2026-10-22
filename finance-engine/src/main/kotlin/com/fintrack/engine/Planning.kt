@@ -12,8 +12,8 @@ fun safeToSpend(liquid: Money, reserved: Money, uncovered: Money, buffer: Money)
     }
     val raw = BigInteger.valueOf(liquid.minor) - BigInteger.valueOf(reserved.minor) -
         BigInteger.valueOf(uncovered.minor) - BigInteger.valueOf(buffer.minor)
-    val available = raw.max(BigInteger.ZERO).longValueExact()
-    val deficit = raw.negate().max(BigInteger.ZERO).longValueExact()
+    val available = raw.max(BigInteger.ZERO).toLongChecked()
+    val deficit = raw.negate().max(BigInteger.ZERO).toLongChecked()
     return SafeToSpend(Money(available, liquid.currency), Money(deficit, liquid.currency))
 }
 

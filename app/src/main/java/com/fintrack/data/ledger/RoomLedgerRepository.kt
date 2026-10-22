@@ -181,7 +181,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
         validateJournal(legs)
         // Keep gross positive journal totals representable in SQLite's signed integer SUM.
         val gross = legs.filter { it.amount.minor > 0 }.fold(BigInteger.ZERO) { sum, leg -> sum + BigInteger.valueOf(leg.amount.minor) }
-        gross.longValueExact()
+        require(gross <= BigInteger.valueOf(Long.MAX_VALUE)) { "Gross journal amount exceeds signed 64-bit range" }
         dao.insertJournal(JournalEntity(id, command.bookId, command.id, kind, date.toString(), clock.millis(), clearing.name, memo, reason, reversalOf))
         dao.insertPostings(legs.map { PostingEntity(this.id(), id, it.accountId, it.amount.minor) })
         dao.seal(JournalSealEntity(id))
