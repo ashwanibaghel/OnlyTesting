@@ -1,6 +1,6 @@
 # Phase 1 functional specification
 
-Status: proposed product rules, with a small foundation implementation. Items below describe the Phase 1 destination, not currently shipped features.
+Status: Phase 1 destination; accounts and the ledger are implemented in milestone 2. Other rows remain planned unless explicitly stated in MILESTONE_2.md.
 
 | Capability | Required behavior / acceptance |
 | --- | --- |
@@ -39,10 +39,10 @@ Status: proposed product rules, with a small foundation implementation. Items be
 
 ## Open product decisions (proposals, not silent assumptions)
 
-- INR default is only a proposal given developer locale; no real currency chosen on the startup screen. One currency per local book, no FX in Phase 1. Currency becomes immutable after the first posting.
-- Minimum Android 8.0/API 26; confirm intended device coverage before distribution.
+- Confirmed for milestone 2: INR default, one currency per book, no FX. Currency metadata is immutable; unsupported currencies/exponents are rejected.
+- Confirmed provisionally: minimum Android 8.0/API 26; revisit coverage before distribution.
 - Credit cards, loans and debt repayment require liability semantics; defer rather than present negative cash as a complete debt model. Negative asset balances are still represented honestly and flagged.
-- Default category rollover: off; goal/emergency reserves persist. User must choose before budget implementation.
+- Confirmed default category rollover: off; goal/emergency reserves will persist. These features are outside milestone 2.
 - Monthly goal plan due on a selected anchor day, conservatively counting the current month; arrears are a visible separate commitment, never silently added twice.
 - Investments initially use manual cost/contribution tracking, with liquid status explicitly false; valuation and returns are outside Phase 1.
 - No analytics or cloud sync. App lock and database encryption need a threat-model and recovery decision before production release.

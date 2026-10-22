@@ -11,6 +11,8 @@ hilt = "2.56.2"
 datastore = "1.1.4"
 coroutines = "1.10.2"
 junit = "4.13.2"
+robolectric = "4.15.1"
+androidx-test-core = "1.6.1"
 
 [libraries]
 androidx-core = { module = "androidx.core:core-ktx", version.ref = "core" }
@@ -29,6 +31,8 @@ hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hil
 datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 junit = { module = "junit:junit", version.ref = "junit" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-test-core" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

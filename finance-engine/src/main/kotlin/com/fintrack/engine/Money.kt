@@ -43,3 +43,12 @@ data class Money(val minor: Long, val currency: CurrencySpec) {
 
 internal fun exactSum(values: Iterable<Long>): Long =
     values.fold(BigInteger.ZERO) { sum, value -> sum + BigInteger.valueOf(value) }.longValueExact()
+
+/** Aggregate exactly before checking final bounds; never use SQLite REAL or floating point. */
+fun sumMoney(values: Iterable<Money>, currency: CurrencySpec): Money {
+    val amounts = values.map {
+        require(it.currency == currency) { "Mixed currencies in aggregate" }
+        it.minor
+    }
+    return Money(exactSum(amounts), currency)
+}

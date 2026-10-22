@@ -20,6 +20,8 @@ android {
     }
 
     buildFeatures { compose = true }
+    testOptions { unitTests.isIncludeAndroidResources = true }
+    sourceSets.getByName("test").resources.srcDir("schemas")
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -49,4 +51,12 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.coroutines.android)
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+}
+
+tasks.withType<Test>().configureEach {
+    systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
+    testLogging { events("passed", "skipped", "failed") }
+    maxHeapSize = "2g"
 }

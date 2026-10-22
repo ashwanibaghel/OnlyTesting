@@ -26,6 +26,8 @@ These are fixed stable releases, deliberately not a claim to the latest releases
 | DataStore | 1.1.4 | [DataStore release notes](https://developer.android.com/jetpack/androidx/releases/datastore); nonfinancial settings only |
 | Coroutines | 1.10.2 | [Official release](https://github.com/Kotlin/kotlinx.coroutines/releases/tag/1.10.2) |
 | JUnit | 4.13.2 | JVM unit tests |
+| Robolectric (milestone 2 tests) | 4.15.1 | [Official stable release](https://github.com/robolectric/robolectric/releases/tag/robolectric-4.15.1); explicit NATIVE SQLite, simulated API 28 |
+| AndroidX Test core (tests only) | 1.6.1 | Application context for real Room integration tests |
 
 Published compatibility ranges establish a baseline, not proof that this complete graph builds. See VERIFICATION.md for actual results. The source of truth for dependency versions is `gradle/libs.versions.toml`.
 

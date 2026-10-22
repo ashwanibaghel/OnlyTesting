@@ -1,6 +1,10 @@
 # Verification record
 
-Date: 2026-10-23, Asia/Kolkata. Results below come from executed commands and downloaded CI JUnit/lint reports.
+Date: 2026-10-23, Asia/Kolkata.
+
+## Milestone 2 verification
+
+Implementation branch: `milestone-2-accounts-ledger`, based on verified main `63d6051`. New implementation verification is in progress. The results in the historical baseline section below do **not** verify milestone 2. Native SQLite/Room integration tests are separate from on-device instrumentation; no physical-device execution is claimed.
 
 ## Reproduction
 
@@ -23,7 +27,7 @@ To run remotely, publish the reviewed foundation to this repository with an acco
 
 No device/emulator runtime test, UI automation, migration test, encrypted backup test, production signing or performance/accessibility certification is implied by a successful debug build. Android unit test task may be NO-SOURCE at this milestone; numerical tests live in the JVM engine module. Room migration tests become mandatory when v2 is introduced. Remaining Phase 1 requirements are tracked in PRODUCT.md.
 
-## Actual results
+## Historical foundation baseline (before milestone 2)
 
 | Check | Actual result |
 | --- | --- |
