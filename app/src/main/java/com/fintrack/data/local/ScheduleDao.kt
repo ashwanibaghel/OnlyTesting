@@ -20,4 +20,6 @@ internal interface ScheduleDao {
     @Query("SELECT c.* FROM investment_contributions c JOIN reserve_buckets r ON r.id = c.bucketId WHERE r.bookId = :book") suspend fun contributions(book: String): List<InvestmentContributionEntity>
     @Insert suspend fun insertReview(value: WeeklyReviewEntity)
     @Query("SELECT * FROM weekly_reviews WHERE bookId = :book ORDER BY weekOf DESC") suspend fun reviews(book: String): List<WeeklyReviewEntity>
+    @Query("SELECT * FROM weekly_reviews WHERE bookId = :book AND weekOf = :week")
+    suspend fun review(book: String, week: String): WeeklyReviewEntity?
 }
