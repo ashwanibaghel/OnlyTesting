@@ -26,6 +26,8 @@ import com.fintrack.data.session.RoomFinanceSessionRepository
 import com.fintrack.domain.session.FinanceSessionRepository
 import com.fintrack.domain.session.FinancialOverviewRepository
 import com.fintrack.data.session.RoomFinancialOverviewRepository
+import com.fintrack.domain.backup.EncryptedBackupRepository
+import com.fintrack.data.backup.RoomEncryptedBackupRepository
 import java.time.Clock
 import dagger.Module
 import dagger.Provides
@@ -85,6 +87,11 @@ object StorageModule {
     fun overview(database: FinTrackDatabase, session: FinanceSessionRepository, reports: FinancialReportsRepository,
         history: HistoryRepository): FinancialOverviewRepository =
         RoomFinancialOverviewRepository(database, session, reports, history, Clock.systemDefaultZone())
+
+    @Provides
+    @Singleton
+    fun backups(database: FinTrackDatabase, @ApplicationContext context: Context): EncryptedBackupRepository =
+        RoomEncryptedBackupRepository(database, context, Clock.systemDefaultZone())
 
     @Provides
     fun accounts(database: FinTrackDatabase): AccountDao = database.accountDao()

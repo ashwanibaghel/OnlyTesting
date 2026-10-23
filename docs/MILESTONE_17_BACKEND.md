@@ -1,0 +1,29 @@
+# Encrypted financial export and authenticated inspection
+
+`EncryptedBackupRepository` exports the real, complete financial database in one Room read transaction and inspects encrypted files without replacing live financial data. Hilt exposes this implemented boundary for eventual native file-picker/password flows. No consumer screen or acceptance APK is introduced.
+
+## Cryptographic/file boundary
+
+The pinned [Tink Android 1.24.0 release](https://github.com/tink-crypto/tink-java/releases/tag/v1.24.0) provides `AES256_GCM_HKDF_1MB` streaming authenticated encryption. Large snapshots are processed in authenticated segments instead of buffering one entire AES-GCM message. Tink documents its [streaming encryption primitives and supported parameters](https://developers.google.com/tink/encrypt-large-files-or-data-streams); Android documents [AES/GCM with 256-bit keys](https://developer.android.com/privacy-and-security/cryptography).
+
+Every export generates a fresh random streaming key and 16-byte password salt. PBKDF2-HMAC-SHA256 derives a 256-bit wrapping key with 600,000 iterations, consistent with OWASP's [PBKDF2 work-factor guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2). AES-GCM encrypts the small streaming keyset using a fresh provider-generated nonce. Fixed format/KDF metadata is associated data for that wrapping operation; the complete outer header is associated data for the streaming ciphertext. No financial figures are placed in the public header. No cloud KMS or network permission is needed.
+
+The file format rejects unsupported versions, invalid/excessive KDF settings, wrapped keys over 8 KiB and payloads over 512 MiB. Password input is copied before suspension, bounded to 12–1024 characters and controllable scratch arrays/specifications are cleared; no password or plaintext keyset is persisted/logged. Provider/library-managed key objects remain managed by the runtime; total heap erasure is not claimed. Caller-owned input/output streams remain caller-owned.
+
+Inspection first decrypts through authenticated EOF into app-private `noBackupFilesDir/bk` staging, then parses the logical snapshot. No plaintext row is handed to the parser/consumer before the entire encrypted file authenticates. Success, authentication/parse failure and cancellation remove staging in `finally`. First backup-service use cleans only owned interrupted staging files; application-start cleanup remains part of subsequent hardening. Export does not create a plaintext staging file.
+
+## Logical database boundary
+
+The logical payload includes compiler schema identity/version, export instant, every financial table's exact typed rows, command fingerprints/receipts/audits, immutable histories and all books. Room's internal tables and executable database trigger/SQL definitions are not imported from files. Compiler-generated V1–V6 schemas are packaged directly from the canonical schema directory as trusted metadata, avoiding duplicate copies. Imported table/column names and types must exactly match the packaged schema. Strings use strict UTF-8, with 1 MiB bounds; total rows are capped at 10 million, alongside the overall byte limit. Snapshot metadata/digest is returned only after complete structural parsing.
+
+This is **authenticated structural inspection, not validated restoration**. Financial semantic validation of a staged database, historical migrations on restore, explicit replacement review, revision invalidation and atomic restore/rollback are subsequent backend work. No restore/apply API is exposed by this increment. DataStore privacy/device preferences are not financial database rows and are not exported. The live Room database remains ordinary app-private SQLite; this feature does not encrypt that database.
+
+## Verification status
+
+The focused suite independently passed all 15 new cases: nine host cryptography/stream tests and six native SQLite/Room integration tests. The full clean JVM/Android-host gate passed in 10m42s: **392 tests, zero failures/errors/skips** (85 finance-engine, 242 native Room, nine cryptography, seven receipt codec and 49 ViewModel cases). All 377 previous CI test identities remain present. Lint reports zero errors and 35 existing warnings; V1–V6 schema files are unchanged. Debug APK assembly passed, and its backup repository class and six byte-for-byte canonical schema assets were inspected. The packaged manifest adds no network permission. Remote CI evidence is recorded after that independent gate finishes.
+
+Coverage includes multi-segment files, fresh random exports, incorrect passwords, header/ciphertext/final-tag tampering, truncation/trailing bytes, bounded KDF/key/payload sizes, caller stream ownership, cancellation, interrupted staging cleanup and exact persisted table/revision/digest inspection. Authenticated but malformed logical payloads are rejected for unsupported schema identity/version, invalid table/column framing, negative/excessive row counts, null/type tags, invalid UTF-8, oversized text and incomplete/trailing payload. Failures leave live rows and original idempotent command receipts unchanged.
+
+Two development failures were reproduced and corrected before this gate. The Windows compile JAR was held by this checkout's idle Gradle daemon; Restart Manager identified the owner, a graceful Gradle stop released it, and subsequent builds use `--no-daemon`. The historical schema reader initially assumed empty index arrays and nullable-field flags were always present; it now handles the compiler's omitted defaults without changing any schema file. Neither failure was bypassed by disabling tests.
+
+All fixtures are synthetic. These Room tests execute on the host under Robolectric with native SQLite, not on a physical device or emulator. Compose execution, production security completion, validated restoration and Phase 1 completion are not claimed.

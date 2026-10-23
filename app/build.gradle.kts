@@ -22,6 +22,7 @@ android {
     buildFeatures { compose = true }
     testOptions { unitTests.isIncludeAndroidResources = true }
     sourceSets.getByName("test").resources.srcDir("schemas")
+    sourceSets.getByName("main").assets.srcDir("schemas")
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -50,6 +51,7 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.datastore.preferences)
     implementation(libs.coroutines.android)
+    implementation(libs.tink.android)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
