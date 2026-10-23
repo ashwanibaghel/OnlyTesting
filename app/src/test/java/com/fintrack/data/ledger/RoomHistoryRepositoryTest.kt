@@ -8,6 +8,9 @@ import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.test.core.app.ApplicationProvider
 import com.fintrack.data.local.*
 import com.fintrack.domain.ledger.*
+import com.fintrack.data.reports.RoomFinancialReportsRepository
+import com.fintrack.domain.reports.FinancialReport
+import com.fintrack.domain.reports.ReportPeriod
 import com.fintrack.engine.Money
 import java.time.*
 import java.util.UUID
@@ -176,6 +179,14 @@ class RoomHistoryRepositoryTest {
         println("HOST NATIVE SQLITE: rows=10053 seedMs=$seedMs boundedSearchMs=$searchMs page100Ms=$browseMs plan=$plan")
         assertFalse("Chronological browsing must avoid a temporary ordering sort: $plan", plan.any { it.contains("TEMP B-TREE", ignoreCase = true) })
         assertTrue(plan.any { it.contains("index_journals_bookId_effectiveDate_createdAt_id") })
+        lateinit var report: FinancialReport
+        val reportMs = measureTimeMillis {
+            report = RoomFinancialReportsRepository(db, clock).report(DEFAULT_BOOK, ReportPeriod(today.minusDays(100), today))
+        }
+        assertEquals(10_053L, report.posted.journalCount)
+        assertEquals(m(5026), report.posted.totals.income); assertEquals(m(5026), report.posted.totals.expense)
+        assertEquals(m(1000), report.assetTrend.last().postedAssets); assertEquals(101, report.assetTrend.size)
+        println("HOST NATIVE SQLITE REPORT: journals=10053 reportMs=$reportMs postedIncome=5026 postedExpense=5026 trackedAssets=1000")
     }
     @Test fun populatedV5MigrationPreservesCursorHistoryAndOriginalReceipt() = scenario {
         seed(25); val before = ledger.snapshot(); val first = history.page(DEFAULT_BOOK, size = 7)
