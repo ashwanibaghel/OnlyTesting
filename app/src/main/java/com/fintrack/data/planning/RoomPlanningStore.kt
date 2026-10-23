@@ -36,8 +36,10 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
             m(it.monthlyCapacityMinor), it.horizonDays, it.setupComplete) }
             ?: FinancialProfile(clock.zone.id, m(0), m(0), 30, false)
         val balances = balances(book)
-        val buckets = dao.buckets(book).map { ReserveBucket(it.id, it.name, BucketKind.valueOf(it.kind),
-            it.protected, balances[it.id] ?: m(0), it.category, it.month?.let(YearMonth::parse), it.archived) }
+        val bucketRows = dao.buckets(book)
+        val liquidBacking = assessBacking(ledger.liquid, bucketRows.associate { it.id to (balances[it.id] ?: m(0)) })
+        val buckets = bucketRows.map { ReserveBucket(it.id, it.name, BucketKind.valueOf(it.kind),
+            it.protected, balances[it.id] ?: m(0), it.category, it.month?.let(YearMonth::parse), it.archived, liquidBacking.claims.getValue(it.id)) }
         val indexed = buckets.associateBy { it.id }
         val spending = ledger.history.flatMap { entry -> entry.legs.filter { it.role == LedgerRole.EXPENSE }
             .map { Triple(YearMonth.from(entry.effectiveDate), it.label, it.amount) } }
@@ -47,18 +49,34 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
             val policy = RolloverPolicy.valueOf(it.rollover)
             val spent = spending[bucket.month to bucket.category] ?: m(0)
             MonthlyBudget(it.bucketId, requireNotNull(bucket.category), requireNotNull(bucket.month), m(it.limitMinor),
-                m(it.carriedMinor), policy, it.closed, budgetPosition(m(it.limitMinor), m(it.carriedMinor), spent, policy), bucket.funded)
+                m(it.carriedMinor), policy, it.closed, budgetPosition(m(it.limitMinor), m(it.carriedMinor), spent, policy), bucket.funded, bucket.backing)
         }
         val contributions = db.scheduleDao().contributions(book).groupBy { it.bucketId }
         val journals = ledger.history.associateBy { it.id }
-        val funding = dao.goals(book).map {
+        val byAccount = contributions.values.flatten().groupBy { it.investmentAccountId }
+        val investmentBacking = ledger.accounts.filter { it.kind == AccountKind.INVESTMENT }.sortedBy { it.id }.map { account ->
+            val claims = byAccount[account.id].orEmpty().groupBy { it.bucketId }
+            val posted = claims.mapValues { (_, entries) -> sumMoney(entries.map { m(it.minor) }, INR) }
+            val cleared = claims.mapValues { (_, entries) -> sumMoney(entries.filter { journals[it.journalId]?.clearedDate != null }.map { m(it.minor) }, INR) }
+            InvestmentBackingPosition(account.id, assessBacking(account.posted, posted), assessBacking(account.cleared, cleared))
+        }
+        fun combinedCostBacking(bucket: String, posted: Boolean): ClaimBacking {
+            val bounds = investmentBacking.mapNotNull { (if (posted) it.posted else it.cleared).claims[bucket] }
+            return ClaimBacking(sumMoney(bounds.map { it.claimed }, INR), sumMoney(bounds.map { it.minimum }, INR), sumMoney(bounds.map { it.maximum }, INR))
+        }
+        val goalRows = dao.goals(book)
+        val funding = goalRows.map {
             val reserved = indexed.getValue(it.bucketId).funded
             val posted = sumMoney(contributions[it.bucketId].orEmpty().map { value -> m(value.minor) }, INR)
             val cleared = sumMoney(contributions[it.bucketId].orEmpty().filter { value -> journals[value.journalId]?.clearedDate != null }.map { value -> m(value.minor) }, INR)
             require(posted.minor >= 0) { "Contribution reversals exceed original contributions" }
-            GoalFunding(it.bucketId, reserved, posted, cleared, reserved + posted)
+            val cash = liquidBacking.claims.getValue(it.bucketId)
+            val cost = combinedCostBacking(it.bucketId, true)
+            val clearedCost = combinedCostBacking(it.bucketId, false)
+            GoalFunding(it.bucketId, reserved, posted, cleared, cash.minimum + cost.minimum,
+                cash.maximum + cost.maximum, cash, cost, clearedCost)
         }.associateBy { it.bucketId }
-        val goals = dao.goals(book).map { GoalPlan(it.bucketId, m(it.targetMinor), funding.getValue(it.bucketId).progress,
+        val goals = goalRows.map { GoalPlan(it.bucketId, m(it.targetMinor), funding.getValue(it.bucketId).progress,
             LocalDate.parse(it.deadline), it.priority, m(it.monthlyMinor), it.anchorDay) }
         val reservations = reservationPosition(ledger.liquid, buckets.map { it.funded })
         val schedules = RoomScheduleStore(db, clock)
@@ -67,7 +85,7 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
         return PlanningSnapshot(ledger, asOf, profile, buckets, budgets, goals,
             assessGoals(goals, asOf, profile.monthlyCapacity), reservations,
             safeToSpend(ledger.liquid, reservations.reserved, scheduled.uncoveredObligations, profile.safetyBuffer),
-            funding.values.toList(), obligations, scheduled.uncoveredObligations)
+            funding.values.toList(), obligations, scheduled.uncoveredObligations, investmentBacking)
     }
 
     fun diversion(snapshot: PlanningSnapshot, sourceId: String, destinationId: String?, amount: Money): DiversionReview {
@@ -75,23 +93,24 @@ internal class RoomPlanningStore(private val db: FinTrackDatabase, private val c
         val source = requireNotNull(snapshot.buckets.firstOrNull { it.id == sourceId && !it.archived }) { "Source reserve not available" }
         if (destinationId != null) require(snapshot.buckets.any { it.id == destinationId && !it.archived }) { "Destination reserve not available" }
         require(amount.minor <= source.funded.minor) { "Amount exceeds funded reserve" }
-        val changed = snapshot.goals.map { when (it.id) {
-            sourceId -> it.copy(funded = it.funded - amount)
-            destinationId -> it.copy(funded = it.funded + amount)
-            else -> it
-        } }
-        val after = assessGoals(changed, snapshot.asOf, snapshot.profile.monthlyCapacity).assessments.associateBy { it.id }
-        val impacts = snapshot.goalCollisions.assessments.filter { it != after.getValue(it.id) || it.id == sourceId || it.id == destinationId }.map { before ->
-            val updated = after.getValue(before.id)
-            GoalDiversionImpact(before.id, when (before.id) { sourceId -> amount; destinationId -> -amount; else -> m(0) },
-                before.requiredMonthly, updated.requiredMonthly, before.projectedCompletion, updated.projectedCompletion)
-        }
-        val reservedAfter = if (destinationId == null) snapshot.reservations.reserved - amount else snapshot.reservations.reserved
         val changedFunding = snapshot.buckets.associate { it.id to when (it.id) {
             sourceId -> it.funded - amount
             destinationId -> it.funded + amount
             else -> it.funded
         } }
+        val cashAfter = assessBacking(snapshot.ledger.liquid, changedFunding)
+        val previousFunding = snapshot.goalFunding.associateBy { it.bucketId }
+        val changed = snapshot.goals.map { it.copy(funded = cashAfter.claims.getValue(it.id).minimum + previousFunding.getValue(it.id).contributionBacking.minimum) }
+        val changedGoals = changed.associateBy { it.id }
+        val previousGoals = snapshot.goals.associateBy { it.id }
+        val after = assessGoals(changed, snapshot.asOf, snapshot.profile.monthlyCapacity).assessments.associateBy { it.id }
+        val impacts = snapshot.goalCollisions.assessments.filter { it != after.getValue(it.id) || it.id == sourceId || it.id == destinationId ||
+            previousGoals.getValue(it.id).funded != changedGoals.getValue(it.id).funded }.map { before ->
+            val updated = after.getValue(before.id)
+            GoalDiversionImpact(before.id, previousGoals.getValue(before.id).funded - changedGoals.getValue(before.id).funded,
+                before.requiredMonthly, updated.requiredMonthly, before.projectedCompletion, updated.projectedCompletion)
+        }
+        val reservedAfter = if (destinationId == null) snapshot.reservations.reserved - amount else snapshot.reservations.reserved
         val uncoveredAfter = sumMoney(coverObligations(snapshot.obligations, changedFunding, INR).map { it.uncovered }, INR)
         return DiversionReview(DiversionConsent(snapshot.ledger.revision, snapshot.asOf, sourceId, destinationId, amount, impacts),
             source.name, source.funded - amount, source.protected,

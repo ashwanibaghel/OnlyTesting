@@ -20,15 +20,15 @@ class RoomFinancialReviewRepository(private val db: FinTrackDatabase,
         val current = planning.read(ledger.snapshot(book), book, LocalDate.now(clock.withZone(zone)))
         val reserves = current.buckets.map {
             val identity = if (it.kind == BucketKind.CATEGORY) "category:${it.category!!.length}:${it.category}:${it.month}" else "bucket:${it.id}"
-            ReviewedReservePosition(identity, it.name, it.kind.name, it.protected, it.funded, it.archived)
+            ReviewedReservePosition(identity, it.name, it.kind.name, it.protected, it.funded, it.archived, it.backing)
         }.sortedBy { it.identity }
         val budgets = current.budgets.map { ReviewedBudgetPosition(it.category, it.month, it.limit, it.carried,
-            it.rollover, it.closed, it.position, it.funded) }.sortedWith(compareBy<ReviewedBudgetPosition> { it.month }.thenBy { it.category })
+            it.rollover, it.closed, it.position, it.funded, it.backing) }.sortedWith(compareBy<ReviewedBudgetPosition> { it.month }.thenBy { it.category })
         return ReviewedFinancialPosition(current.ledger.revision, current.asOf,
             current.ledger.accounts.sortedBy { it.id }, current.ledger.liquid, current.ledger.income,
             current.ledger.expense, current.ledger.history.size, current.profile, reserves, budgets,
             current.reservations, current.safeToSpend, current.uncoveredObligations,
-            current.goalFunding.sortedBy { it.bucketId }, current.goalCollisions)
+            current.goalFunding.sortedBy { it.bucketId }, current.goalCollisions, current.goalFundingAssumptions, current.investmentBacking)
     }
 
     private suspend fun saved(command: LedgerCommand, hash: String): CommandReceipt? {

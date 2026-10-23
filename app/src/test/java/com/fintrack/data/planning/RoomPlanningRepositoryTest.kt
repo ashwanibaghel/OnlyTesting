@@ -9,6 +9,7 @@ import com.fintrack.data.ledger.fingerprint
 import com.fintrack.data.local.*
 import com.fintrack.domain.ledger.*
 import com.fintrack.domain.planning.*
+import com.fintrack.domain.schedules.ScheduleAction
 import com.fintrack.engine.*
 import java.time.Clock
 import java.time.Instant
@@ -297,6 +298,97 @@ class RoomPlanningRepositoryTest {
         send(LedgerAction.Reconcile("bank", today, m(500), BalanceBasis.POSTED, "Actual statement"))
         assertEquals(m(800), snapshot().reservations.reserved)
         assertEquals(m(300), snapshot().reservations.deficit); assertEquals(m(300), snapshot().safeToSpend.deficit)
+    }
+    @Test fun backedGoalProgressReflectsActualCashWithoutErasingReservations() = scenario {
+        goal(); move("goal", 800)
+        send(LedgerAction.Reconcile("bank", today, m(500), BalanceBasis.POSTED, "Actual statement"))
+        val result = snapshot()
+        assertEquals(m(800), result.reservations.reserved); assertEquals(m(300), result.reservations.deficit)
+        assertEquals(m(500), result.goalFunding.single().progress)
+        assertEquals(m(400), result.goalCollisions.assessments.single().remaining)
+        assertEquals(ClaimBacking(m(800), m(500), m(500)), result.goalFunding.single().cashBacking)
+        assertTrue(result.requiresFundingReview); assertTrue(result.goalFundingAssumptions.isNotEmpty())
+    }
+    @Test fun backedInvestmentProgressCannotCountMoneyAlreadyReturnedToCash() = scenario {
+        send(LedgerAction.CreateAccount("invest", "Investments", AccountKind.INVESTMENT, m(0), today))
+        plan(PlanningAction.SetGoal("invest-goal", "Investment goal", m(1000), today.plusYears(1), 1, m(100), 23, investment = true))
+        move("invest-goal", 300)
+        send(LedgerAction.Schedule(ScheduleAction.Invest("invest-goal", TransactionDraft.Transfer("bank", "invest", m(300), m(0), today))))
+        send(LedgerAction.Post(TransactionDraft.Transfer("invest", "bank", m(200), m(0), today)))
+        val result = snapshot()
+        assertEquals(m(900), result.ledger.liquid); assertEquals(m(300), result.goalFunding.single().postedContributions)
+        assertEquals(m(100), result.goalFunding.single().progress)
+        assertEquals(m(900), result.goalCollisions.assessments.single().remaining)
+        assertEquals(m(200), result.investmentBacking.single().posted.deficit)
+        assertTrue(result.goalFunding.single().requiresBackingReview)
+    }
+    @Test fun backedSharedCashHasExplicitBoundsAndOneActualGlobalTotal() = scenario {
+        goal("a"); goal("b", 2); move("a", 400); move("b", 400)
+        send(LedgerAction.Reconcile("bank", today, m(500), BalanceBasis.POSTED, "Actual statement"))
+        val result = snapshot()
+        assertEquals(m(500), result.liquidBacking.backedTotal); assertEquals(m(300), result.liquidBacking.deficit)
+        assertTrue(result.goalFunding.all { it.progress == m(100) && it.maximumProgress == m(400) && it.cashBacking.ambiguous })
+        assertTrue(result.requiresFundingReview); assertTrue(result.goalFundingAssumptions.isNotEmpty())
+    }
+    @Test fun backedDeficitResolutionRecomputesOtherGoalsWithoutErasingHistory() = scenario {
+        goal("a"); goal("b", 2); move("a", 400); move("b", 400)
+        send(LedgerAction.Reconcile("bank", today, m(500), BalanceBasis.POSTED, "Actual statement"))
+        val before = snapshot()
+        val review = planning.previewDiversion(DEFAULT_BOOK, "a", null, m(300), today)
+        assertEquals(m(0), review.consent.goalImpacts.single { it.id == "a" }.lostFunded)
+        assertEquals(m(-300), review.consent.goalImpacts.single { it.id == "b" }.lostFunded)
+        move(null, 300, "a", review.consent)
+        val after = snapshot()
+        assertEquals(before.ledger.accounts, after.ledger.accounts); assertEquals(before.ledger.history, after.ledger.history)
+        assertEquals(m(100), after.goalFunding.single { it.bucketId == "a" }.progress)
+        assertEquals(m(400), after.goalFunding.single { it.bucketId == "b" }.progress)
+        assertEquals(m(0), after.reservations.deficit); assertFalse(after.requiresFundingReview)
+    }
+    @Test fun backedGoalCanRecoverWhenAnotherProtectedClaimIsReleased() = scenario {
+        goal(); plan(PlanningAction.CreateReserve("savings", "Savings", BucketKind.SAVINGS))
+        move("goal", 400); move("savings", 400)
+        send(LedgerAction.Reconcile("bank", today, m(500), BalanceBasis.POSTED, "Actual statement"))
+        assertEquals(m(100), snapshot().goalFunding.single().progress)
+        val review = planning.previewDiversion(DEFAULT_BOOK, "savings", null, m(300), today)
+        assertEquals(m(-300), review.consent.goalImpacts.single().lostFunded)
+        move(null, 300, "savings", review.consent)
+        assertEquals(m(400), snapshot().goalFunding.single().progress)
+    }
+    @Test fun backedInvestmentClaimsShareOnlyActualAssetBacking() = scenario {
+        send(LedgerAction.CreateAccount("invest", "Investments", AccountKind.INVESTMENT, m(0), today))
+        for ((index, id) in listOf("a", "b").withIndex()) {
+            plan(PlanningAction.SetGoal(id, id, m(1000), today.plusYears(1), index + 1, m(100), 23, investment = true))
+            move(id, 400)
+            send(LedgerAction.Schedule(ScheduleAction.Invest(id, TransactionDraft.Transfer("bank", "invest", m(400), m(0), today))))
+        }
+        send(LedgerAction.Reconcile("invest", today, m(500), BalanceBasis.POSTED, "Actual recorded asset cost"))
+        val result = snapshot()
+        assertEquals(m(500), result.investmentBacking.single().posted.backedTotal)
+        assertEquals(m(300), result.investmentBacking.single().posted.deficit)
+        assertTrue(result.goalFunding.all { it.postedContributions == m(400) && it.progress == m(100) && it.maximumProgress == m(400) })
+    }
+    @Test fun backedPendingAndClearedInvestmentPositionsRemainSeparate() = scenario {
+        send(LedgerAction.CreateAccount("invest", "Investments", AccountKind.INVESTMENT, m(0), today))
+        plan(PlanningAction.SetGoal("retire", "Retirement", m(1000), today.plusYears(1), 1, m(100), 23, investment = true))
+        move("retire", 300)
+        send(LedgerAction.Schedule(ScheduleAction.Invest("retire", TransactionDraft.Transfer("bank", "invest", m(300), m(0), today))))
+        send(LedgerAction.Reconcile("invest", today, m(100), BalanceBasis.CLEARED, "Actual cleared asset cost"))
+        move("retire", 200)
+        send(LedgerAction.Schedule(ScheduleAction.Invest("retire", TransactionDraft.Transfer("bank", "invest", m(200), m(0), today, Clearing.PENDING))))
+        val result = snapshot().goalFunding.single()
+        assertEquals(m(500), result.postedContributions); assertEquals(m(300), result.clearedContributions)
+        assertEquals(m(300), result.contributionBacking.minimum); assertEquals(m(100), result.clearedContributionBacking.minimum)
+        assertEquals(m(300), result.progress)
+    }
+    @Test fun backedReservationsRecoverOnlyWhenActualMoneyReturns() = scenario {
+        goal(); move("goal", 800)
+        send(LedgerAction.Reconcile("bank", today, m(500), BalanceBasis.POSTED, "Actual statement"))
+        val allocations = count("allocation_journals")
+        assertEquals(m(500), snapshot().goalFunding.single().progress)
+        send(LedgerAction.Post(TransactionDraft.Income("bank", m(300), "Salary", today)))
+        val result = snapshot()
+        assertEquals(m(800), result.goalFunding.single().progress); assertFalse(result.requiresFundingReview)
+        assertEquals(allocations, count("allocation_journals")); assertEquals(m(800), result.reservations.reserved)
     }
     @Test fun v2MigrationPreservesFinancialHistoryAndOriginalCommandFingerprint() = scenario {
         db.close(); context.deleteDatabase(file)
