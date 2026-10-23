@@ -69,6 +69,8 @@ class RoomEncryptedBackupRepositoryTest {
         assertEquals(clock.instant(), written.createdAt); assertEquals(64, written.payloadSha256.length)
         assertFalse(String(bytes, Charsets.ISO_8859_1).contains("SYNTHETIC private bank"))
         assertEquals(written, backups.inspectEncrypted(ByteArrayInputStream(bytes), password()))
+        val storage = backups.inspectStorageEncrypted(ByteArrayInputStream(bytes), password())
+        assertEquals(written, storage.source); assertEquals(6, storage.migratedSchemaVersion); assertEquals(counts, storage.migratedTableRows)
         assertEquals(before, ledger.snapshot()); assertEquals(counts, rows()); noStaging()
     }
     @Test fun reopeningRetainsStateAndOriginalReceipt() = scenario {
