@@ -27,7 +27,8 @@ data class CommandEntity(@PrimaryKey val id: String, val bookId: String, val fin
     ForeignKey(entity = BookEntity::class, parentColumns = ["id"], childColumns = ["bookId"]),
     ForeignKey(entity = CommandEntity::class, parentColumns = ["id"], childColumns = ["commandId"]),
     ForeignKey(entity = JournalEntity::class, parentColumns = ["id"], childColumns = ["reversalOf"]),
-], indices = [Index("bookId"), Index("commandId"), Index(value = ["reversalOf"], unique = true), Index("effectiveDate")])
+], indices = [Index("bookId"), Index("commandId"), Index(value = ["reversalOf"], unique = true), Index("effectiveDate"),
+    Index(value = ["bookId", "effectiveDate", "createdAt", "id"])])
 data class JournalEntity(@PrimaryKey val id: String, val bookId: String, val commandId: String,
     val kind: String, val effectiveDate: String, val createdAt: Long, val clearing: String,
     val memo: String, val reason: String, val reversalOf: String?)

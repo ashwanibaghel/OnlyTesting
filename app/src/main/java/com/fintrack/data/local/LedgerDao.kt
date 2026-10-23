@@ -23,9 +23,13 @@ internal interface LedgerDao {
     @Query("SELECT revision FROM books WHERE id = :id") fun revision(id: String): Flow<Long?>
     @Query("SELECT * FROM commands WHERE id = :id") suspend fun command(id: String): CommandEntity?
     @Query("SELECT * FROM accounts WHERE bookId = :book ORDER BY name, id") suspend fun accounts(book: String): List<AccountEntity>
+    @Query("SELECT * FROM accounts WHERE bookId = :book AND id = :id") suspend fun account(book: String, id: String): AccountEntity?
     @Query("SELECT * FROM ledger_accounts WHERE bookId = :book") suspend fun ledgerAccounts(book: String): List<LedgerAccountEntity>
+    @Query("SELECT * FROM ledger_accounts WHERE bookId = :book AND role = :role AND name = :name ORDER BY rowid LIMIT 1")
+    suspend fun control(book: String, role: String, name: String): LedgerAccountEntity?
     @Query("SELECT j.* FROM journals j JOIN journal_seals s ON s.entryId = j.id WHERE j.bookId = :book ORDER BY j.effectiveDate, j.createdAt, j.id")
     suspend fun journals(book: String): List<JournalEntity>
+    @Query("SELECT * FROM journals WHERE id = :id AND bookId = :book") suspend fun journal(book: String, id: String): JournalEntity?
     @Query("SELECT p.* FROM postings p JOIN journals j ON j.id = p.entryId JOIN journal_seals s ON s.entryId = j.id WHERE j.bookId = :book")
     suspend fun postings(book: String): List<PostingEntity>
     @Query("SELECT c.* FROM clearing_events c JOIN journals j ON j.id = c.entryId WHERE j.bookId = :book")

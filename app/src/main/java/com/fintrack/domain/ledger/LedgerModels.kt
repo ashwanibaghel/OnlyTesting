@@ -2,6 +2,8 @@ package com.fintrack.domain.ledger
 
 import com.fintrack.engine.CurrencySpec
 import com.fintrack.engine.Money
+import com.fintrack.domain.planning.PlanningAction
+import com.fintrack.domain.schedules.ScheduleAction
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
@@ -14,6 +16,7 @@ enum class Clearing { PENDING, CLEARED }
 enum class BalanceBasis { POSTED, CLEARED }
 
 data class Split(val category: String, val amount: Money)
+data class OpeningDeclaration(val accountId: String, val balance: Money, val date: LocalDate)
 
 sealed interface TransactionDraft {
     val date: LocalDate
@@ -35,6 +38,10 @@ sealed interface TransactionDraft {
 }
 
 sealed interface LedgerAction {
+    data class Setup(val newAccounts: List<CreateAccount>, val existingOpenings: List<OpeningDeclaration>,
+        val profile: PlanningAction.Configure) : LedgerAction
+    data class Plan(val operation: PlanningAction) : LedgerAction
+    data class Schedule(val operation: ScheduleAction) : LedgerAction
     data class CreateAccount(val accountId: String, val name: String, val kind: AccountKind,
         val opening: Money, val date: LocalDate) : LedgerAction
     data class Post(val draft: TransactionDraft) : LedgerAction

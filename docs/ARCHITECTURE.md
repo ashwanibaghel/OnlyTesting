@@ -2,6 +2,8 @@
 
 ## Dependency direction
 
+Current Phase 1 backend increments and the draft-design dependency are tracked in [PHASE_1_EXECUTION.md](PHASE_1_EXECUTION.md). [MILESTONE_3_BACKEND.md](MILESTONE_3_BACKEND.md) supersedes the historical milestone-2-only status statements below for budgets, virtual ownership and goal persistence. Actual ledger and virtual allocation postings remain separate tables, composed atomically at the repository command boundary.
+
 `app.ui -> ViewModel -> use case / repository -> Room + finance-engine`. The `finance-engine` JVM module depends only on Kotlin/JDK. It receives immutable inputs and explicit dates; it does not read Room, Android, system time, settings or network. Future iOS follows FINANCE_RULES.md and shared fixture examples rather than Android code.
 
 Two modules keep the foundation maintainable. App packages include `ui/ledger`, `domain/ledger`, `data/ledger`, `data/local`, `data/settings`, and `di`. `LedgerRepository` is the public financial boundary; internal `LedgerDao` is used only by its Room implementation and database integration tests. Compose collects ViewModel StateFlow using lifecycle-aware APIs. Hilt provides the repository, Room and one preferences DataStore. Financial state belongs exclusively in Room; DataStore stores UI preferences. No WorkManager dependency until scheduled work exists.

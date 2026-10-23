@@ -2,6 +2,8 @@ package com.fintrack.data.ledger
 
 import com.fintrack.domain.ledger.*
 import com.fintrack.engine.Money
+import com.fintrack.data.planning.writePlanning
+import com.fintrack.data.schedules.writeSchedule
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
@@ -29,6 +31,15 @@ internal fun fingerprint(command: LedgerCommand): String {
         }
         text("fintrack-command-v1"); text(command.bookId); out.writeLong(command.expectedRevision)
         when (val action = command.action) {
+            is LedgerAction.Setup -> {
+                text("financial-setup-v1"); out.writeInt(action.newAccounts.size)
+                action.newAccounts.forEach { text(it.accountId); text(it.name); text(it.kind.name); money(it.opening); text(it.date.toString()) }
+                out.writeInt(action.existingOpenings.size)
+                action.existingOpenings.forEach { text(it.accountId); money(it.balance); text(it.date.toString()) }
+                writePlanning(out, action.profile)
+            }
+            is LedgerAction.Plan -> { text("planning-v1"); writePlanning(out, action.operation) }
+            is LedgerAction.Schedule -> { text("schedule-v1"); writeSchedule(out, action.operation) }
             is LedgerAction.CreateAccount -> { text("create"); text(action.accountId); text(action.name); text(action.kind.name); money(action.opening); text(action.date.toString()) }
             is LedgerAction.Post -> { text("post"); draft(action.draft) }
             is LedgerAction.Archive -> { text("archive"); text(action.accountId); out.writeBoolean(action.archived) }

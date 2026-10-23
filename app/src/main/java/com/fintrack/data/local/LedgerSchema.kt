@@ -7,7 +7,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 /** SQL protection applies equally to freshly created and migrated databases. */
 object LedgerSchema {
     val callback = object : RoomDatabase.Callback() {
-        override fun onCreate(db: SupportSQLiteDatabase) = installTriggers(db)
+        override fun onCreate(db: SupportSQLiteDatabase) {
+            installTriggers(db)
+            PlanningSchema.installTriggers(db)
+            ScheduleSchema.installTriggers(db)
+            ScheduleLinkSchema.installTriggers(db)
+        }
         override fun onOpen(db: SupportSQLiteDatabase) {
             // Configure Android's entire connection pool, not just Room's opening connection.
             db.setForeignKeyConstraintsEnabled(true)
@@ -15,6 +20,9 @@ object LedgerSchema {
                 check(it.moveToFirst() && it.getInt(0) == 1) { "Foreign-key enforcement is required" }
             }
             installTriggers(db)
+            PlanningSchema.installTriggers(db)
+            ScheduleSchema.installTriggers(db)
+            ScheduleLinkSchema.installTriggers(db)
         }
     }
 
