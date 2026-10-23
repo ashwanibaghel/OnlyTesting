@@ -30,6 +30,7 @@ These are implementation gates, not claims that the features are already complet
 - General command effect review: 24 new native Room cases, 301 tests pass, full lint/debug gate and unchanged schemas. Preview executes real ledger logic inside a rolled-back transaction; reviewed application rechecks exact state/outcomes and preserves idempotent receipts. See [MILESTONE_9_BACKEND.md](MILESTONE_9_BACKEND.md).
 - Reviewed workflow integration: 6 further JVM behavior cases plus 3 actual ViewModel/Room integration cases; 310 tests pass, full lint/debug gate and unchanged schemas. Normal/diversion forms use real prospective effects and exact reviewed application; observer recovery and retry/form identity protections remain intact. See [MILESTONE_10_BACKEND.md](MILESTONE_10_BACKEND.md).
 - Actual funding backing: 7 engine cases (including exhaustive small-allocation proof) and 8 native Room cases; 325 tests pass, full lint/debug gate and unchanged schemas. Recorded claims remain immutable; backed progress and shared shortfall uncertainty are explicit, and reviewed diversion recomputes consequences across affected goals. See [MILESTONE_11_BACKEND.md](MILESTONE_11_BACKEND.md).
+- Immutable payment unlink/relink: 14 native Room cases; 339 tests pass with full lint/debug gate. Necessary explicit V5 migration changes historical-link uniqueness to current-link SQL guards; all V1–V4 schemas and financial rows are preserved. See [MILESTONE_12_BACKEND.md](MILESTONE_12_BACKEND.md).
 
 ## Design handoff
 

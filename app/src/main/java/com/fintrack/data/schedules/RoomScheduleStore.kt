@@ -226,6 +226,17 @@ internal class RoomScheduleStore(private val db: FinTrackDatabase, private val c
         recordConfirmation(command, ScheduleAction.Confirm(rule.id, action.scheduledDate, entry.effectiveDate, clearing), entry.id, draft)
     }
 
+    suspend fun unlink(command: LedgerCommand, action: ScheduleAction.Unlink) {
+        require(action.reason.isNotBlank() && action.reason.length <= 500) { "Unlinking requires an explicit reason" }
+        val rule = requireNotNull(rules(command.bookId).firstOrNull { it.id == action.ruleId }) { "Schedule not found" }
+        val previous = requireNotNull(resolved(command.bookId)[action.ruleId to action.scheduledDate]) { "Occurrence not found" }
+        require(previous.status == "CONFIRMED" && previous.journalId == action.journalId) { "Reviewed payment is no longer linked to this occurrence" }
+        val stillPlanned = dates(rule, action.scheduledDate, action.scheduledDate).singleOrNull() == action.scheduledDate
+        dao.insertResolution(OccurrenceResolutionEntity(command.id, previous.id, command.id,
+            if (stillPlanned) "REOPENED" else "SKIPPED", null, TemplateCodec.encode(rule.template), action.reason))
+        // The actual payment and its funded consumption are retained; only the mistaken association changes.
+    }
+
     suspend fun resolveActualChange(command: LedgerCommand, originalJournal: String, reversalJournal: String,
         replacementJournal: String? = null, replacement: TransactionDraft? = null) {
         val previous = resolved(command.bookId).values.firstOrNull { it.status == "CONFIRMED" && it.journalId == originalJournal } ?: return

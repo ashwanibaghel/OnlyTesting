@@ -22,7 +22,7 @@ data class ScheduleExceptionEntity(val ruleId: String, val date: String)
     ForeignKey(entity = ScheduledRuleEntity::class, parentColumns = ["id"], childColumns = ["ruleId"]),
     ForeignKey(entity = CommandEntity::class, parentColumns = ["id"], childColumns = ["commandId"]),
     ForeignKey(entity = JournalEntity::class, parentColumns = ["id"], childColumns = ["journalId"]),
-], indices = [Index(value = ["ruleId", "scheduledDate"], unique = true), Index("commandId"), Index(value = ["journalId"], unique = true)])
+], indices = [Index(value = ["ruleId", "scheduledDate"], unique = true), Index("commandId"), Index("journalId")])
 data class ScheduleOccurrenceEntity(@PrimaryKey val id: String, val ruleId: String, val scheduledDate: String,
     val commandId: String, val status: String, val journalId: String?, val reason: String, val confirmedTemplate: String?)
 

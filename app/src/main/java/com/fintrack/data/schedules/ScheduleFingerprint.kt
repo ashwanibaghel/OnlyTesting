@@ -24,6 +24,7 @@ internal fun writeSchedule(out: DataOutputStream, action: ScheduleAction) {
         is ScheduleAction.Skip -> { text("skip"); text(action.ruleId); text(action.scheduledDate.toString()); text(action.reason) }
         is ScheduleAction.Reopen -> { text("reopen"); text(action.ruleId); text(action.scheduledDate.toString()); text(action.reason) }
         is ScheduleAction.LinkExisting -> { text("link-existing"); text(action.ruleId); text(action.scheduledDate.toString()); text(action.journalId); text(action.reason) }
+        is ScheduleAction.Unlink -> { text("unlink-v1"); text(action.ruleId); text(action.scheduledDate.toString()); text(action.journalId); text(action.reason) }
         is ScheduleAction.Invest -> { text("invest"); text(action.bucketId); text(TemplateCodec.encode(action.transfer)) }
         is ScheduleAction.WeeklyReview -> { text("review"); text(action.weekOf.toString()); text(action.note) }
     }

@@ -33,6 +33,8 @@ sealed interface ScheduleAction {
     data class Reopen(val ruleId: String, val scheduledDate: LocalDate, val reason: String) : ScheduleAction
     data class LinkExisting(val ruleId: String, val scheduledDate: LocalDate,
         val journalId: String, val reason: String) : ScheduleAction
+    data class Unlink(val ruleId: String, val scheduledDate: LocalDate,
+        val journalId: String, val reason: String) : ScheduleAction
     data class Invest(val bucketId: String, val transfer: TransactionDraft.Transfer) : ScheduleAction
     data class WeeklyReview(val weekOf: LocalDate, val note: String) : ScheduleAction
 }

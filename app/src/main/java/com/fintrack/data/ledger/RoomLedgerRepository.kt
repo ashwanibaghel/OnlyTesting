@@ -65,6 +65,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
                     is ScheduleAction.Replace -> operation.replacement.id
                     is ScheduleAction.Stop -> operation.ruleId
                     is ScheduleAction.LinkExisting -> operation.journalId
+                    is ScheduleAction.Unlink -> operation.journalId
                     else -> id()
                 }
                 is LedgerAction.Plan -> when (val operation = action.operation) {
@@ -93,6 +94,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
                     is ScheduleAction.Skip -> operation.reason
                     is ScheduleAction.Reopen -> operation.reason
                     is ScheduleAction.LinkExisting -> operation.reason
+                    is ScheduleAction.Unlink -> operation.reason
                     else -> ""
                 }
                 is LedgerAction.Plan -> (action.operation as? PlanningAction.Move)?.reason.orEmpty()
@@ -134,6 +136,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
                     is ScheduleAction.Skip -> schedules.skip(input, operation)
                     is ScheduleAction.Reopen -> schedules.reopen(input, operation)
                     is ScheduleAction.LinkExisting -> schedules.linkExisting(input, operation, snapshotInside(input.bookId))
+                    is ScheduleAction.Unlink -> schedules.unlink(input, operation)
                     is ScheduleAction.WeeklyReview -> schedules.weeklyReview(input, operation)
                     is ScheduleAction.Confirm -> {
                         val draft = schedules.confirmationDraft(input, operation)
