@@ -14,9 +14,11 @@ import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 
 /** A form instance identity, retained while editing; separate instances get separate keys. */
@@ -25,8 +27,12 @@ data class FinancialOperation(val key: String) {
     companion object { fun newForm() = FinancialOperation(UUID.randomUUID().toString()) }
 }
 data class ReviewedFinancialCommand(val token: String, val operation: FinancialOperation,
-    val inputVersion: Long, val asOf: LocalDate, val command: LedgerCommand)
-data class FailedFinancialCommand(val operation: FinancialOperation, val command: LedgerCommand)
+    val inputVersion: Long, val asOf: LocalDate, val effect: FinancialCommandReview) {
+    val command: LedgerCommand get() = effect.command
+}
+data class FailedFinancialCommand(val operation: FinancialOperation, val effect: FinancialCommandReview) {
+    val command: LedgerCommand get() = effect.command
+}
 data class FinancialWorkflowState(val session: FinanceSession? = null,
     val operation: FinancialOperation? = null, val busy: Boolean = false,
     val review: ReviewedFinancialCommand? = null, val retry: FailedFinancialCommand? = null,
@@ -36,7 +42,8 @@ data class FinancialWorkflowState(val session: FinanceSession? = null,
 /** Shared financial form behavior; no consumer layout or design decisions are embedded here. */
 @HiltViewModel
 class FinancialWorkflowViewModel @Inject constructor(private val ledger: LedgerRepository,
-    private val sessions: FinanceSessionRepository, private val planning: PlanningRepository) : ViewModel() {
+    private val sessions: FinanceSessionRepository, private val planning: PlanningRepository,
+    private val reviews: FinancialReviewRepository) : ViewModel() {
     private val mutable = MutableStateFlow(FinancialWorkflowState())
     val state = mutable.asStateFlow()
     private var inputVersion = 0L
@@ -49,7 +56,12 @@ class FinancialWorkflowViewModel @Inject constructor(private val ledger: LedgerR
         observation = viewModelScope.launch {
             try {
                 ledger.initializeBook()
-                sessions.observe(DEFAULT_BOOK).collect { current ->
+                sessions.observe(DEFAULT_BOOK).retryWhen { error, attempt ->
+                    if (error is CancellationException) throw error
+                    mutable.update { it.copy(storageError = error.message ?: "Storage observation failed", review = null) }
+                    delay(minOf(30_000L, 1000L * (1L shl attempt.coerceAtMost(5).toInt())))
+                    true
+                }.collect { current ->
                     acceptSession(current)
                     if (current.pendingRolloverThrough != null) {
                         try { sessions.prepareCurrentPeriod(DEFAULT_BOOK); mutable.update { it.copy(periodError = null) } }
@@ -75,11 +87,21 @@ class FinancialWorkflowViewModel @Inject constructor(private val ledger: LedgerR
 
     fun prepare(operation: FinancialOperation, action: (FinanceSession) -> LedgerAction) {
         if (mutable.value.busy || operation.key in mutable.value.saved) return
+        val failed = mutable.value.retry?.takeIf { it.operation == operation }
         edited(operation)
+        val version = inputVersion
         try {
             val current = ready()
-            publishReview(operation, inputVersion, current, action(current).detached())
-        } catch (error: Exception) { fail(error, inputVersion) }
+            val captured = action(current).detached()
+            val command = failed?.command?.takeIf { it.action == captured }
+                ?: LedgerCommand(operation.key, DEFAULT_BOOK, current.revision, captured)
+            mutable.update { it.copy(busy = true) }
+            viewModelScope.launch {
+                try { publishReview(operation, version, current, reviews.preview(command)) }
+                catch (error: Exception) { fail(error, version) }
+                finally { mutable.update { it.copy(busy = false) } }
+            }
+        } catch (error: Exception) { fail(error, version) }
     }
 
     /** Protected diversion always obtains recomputed consequences from the actual repository. */
@@ -92,8 +114,11 @@ class FinancialWorkflowViewModel @Inject constructor(private val ledger: LedgerR
         viewModelScope.launch {
             try {
                 val result = planning.previewDiversion(DEFAULT_BOOK, sourceId, destinationId, amount, current.today)
-                if (result.consent.revision == current.revision && result.consent.asOf == current.today)
-                    publishReview(operation, version, current, LedgerAction.Plan(PlanningAction.Move(sourceId, destinationId, amount, reason, result.consent)).detached())
+                if (version == inputVersion && result.consent.revision == current.revision && result.consent.asOf == current.today) {
+                    val action = LedgerAction.Plan(PlanningAction.Move(sourceId, destinationId, amount, reason, result.consent)).detached()
+                    val command = LedgerCommand(operation.key, DEFAULT_BOOK, current.revision, action)
+                    publishReview(operation, version, current, reviews.preview(command))
+                }
             } catch (error: Exception) { fail(error, version) }
             finally { mutable.update { it.copy(busy = false) } }
         }
@@ -106,13 +131,16 @@ class FinancialWorkflowViewModel @Inject constructor(private val ledger: LedgerR
         return current
     }
 
-    private fun publishReview(operation: FinancialOperation, version: Long, current: FinanceSession, action: LedgerAction) {
+    private fun publishReview(operation: FinancialOperation, version: Long, current: FinanceSession, effect: FinancialCommandReview) {
         val latest = mutable.value
         if (version != inputVersion || latest.operation != operation || latest.storageError != null ||
             latest.session?.revision != current.revision || latest.session?.today != current.today) return
-        // Retaining the form key across recreation prevents a changed payload from silently posting twice.
-        val command = LedgerCommand(operation.key, DEFAULT_BOOK, current.revision, action)
-        mutable.update { it.copy(review = ReviewedFinancialCommand(UUID.randomUUID().toString(), operation, version, current.today, command)) }
+        if (effect.alreadySaved != null) {
+            mutable.update { it.copy(saved = it.saved + (effect.command.id to effect.alreadySaved), review = null) }
+            return
+        }
+        check(effect.before.revision == current.revision && effect.before.asOf == current.today) { "Financial state changed during preview" }
+        mutable.update { it.copy(review = ReviewedFinancialCommand(UUID.randomUUID().toString(), operation, version, current.today, effect)) }
     }
 
     fun confirm(operation: FinancialOperation, reviewToken: String) {
@@ -121,14 +149,14 @@ class FinancialWorkflowViewModel @Inject constructor(private val ledger: LedgerR
         if (review.operation != operation || review.token != reviewToken || review.inputVersion != inputVersion ||
             mutable.value.operation != operation || mutable.value.session?.revision != review.command.expectedRevision ||
             mutable.value.session?.today != review.asOf || mutable.value.storageError != null) return
-        execute(operation, review.command, review.asOf)
+        execute(operation, review.effect, review.asOf)
     }
 
     fun retry(operation: FinancialOperation, commandId: String) {
         if (mutable.value.busy || mutable.value.operation != operation) return
         val failed = mutable.value.retry?.takeIf { it.operation == operation && it.command.id == commandId } ?: return
         // Keep original ID, payload and expected revision, including after a lost acknowledgement.
-        execute(operation, failed.command)
+        execute(operation, failed.effect)
     }
 
     private fun acceptSession(current: FinanceSession) {
@@ -139,7 +167,8 @@ class FinancialWorkflowViewModel @Inject constructor(private val ledger: LedgerR
         }
     }
 
-    private fun execute(operation: FinancialOperation, command: LedgerCommand, reviewedOn: LocalDate? = null) {
+    private fun execute(operation: FinancialOperation, effect: FinancialCommandReview, reviewedOn: LocalDate? = null) {
+        val command = effect.command
         if (command.id in mutable.value.saved) return
         val version = inputVersion
         mutable.update { it.copy(busy = true, review = null, retry = null, commandError = null) }
@@ -154,7 +183,7 @@ class FinancialWorkflowViewModel @Inject constructor(private val ledger: LedgerR
                     }
                 }
                 attempted = true
-                val receipt = ledger.execute(command)
+                val receipt = reviews.apply(effect)
                 // Save the successful receipt before any refresh that could fail.
                 mutable.update { it.copy(saved = it.saved + (command.id to receipt)) }
                 val current = sessions.snapshot(DEFAULT_BOOK)
@@ -162,7 +191,7 @@ class FinancialWorkflowViewModel @Inject constructor(private val ledger: LedgerR
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 if (command.id in mutable.value.saved) mutable.update { it.copy(storageError = error.message ?: "Saved; refresh storage") }
-                else fail(error, version, if (attempted) FailedFinancialCommand(operation, command) else null)
+                else fail(error, version, if (attempted) FailedFinancialCommand(operation, effect) else null)
             }
             finally { mutable.update { it.copy(busy = false) } }
         }

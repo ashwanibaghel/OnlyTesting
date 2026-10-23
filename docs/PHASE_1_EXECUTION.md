@@ -28,6 +28,7 @@ These are implementation gates, not claims that the features are already complet
 - Atomic recurring-plan replacement: 8 new native Room cases, 268 tests pass, full lint/debug gate and unchanged schemas. Original rules, reviewed decisions and actual history are retained. See [MILESTONE_7_BACKEND.md](MILESTONE_7_BACKEND.md).
 - Current planning/forecast consistency fixes: 9 independently reproduced native Room regressions now pass; full gate has 277 passing tests, unchanged schemas and retained prior tests. Derived current planning overflow rolls back the whole command; non-liquid schedules do not fabricate liquid cash or consume its coverage. See [MILESTONE_8_BACKEND.md](MILESTONE_8_BACKEND.md).
 - General command effect review: 24 new native Room cases, 301 tests pass, full lint/debug gate and unchanged schemas. Preview executes real ledger logic inside a rolled-back transaction; reviewed application rechecks exact state/outcomes and preserves idempotent receipts. See [MILESTONE_9_BACKEND.md](MILESTONE_9_BACKEND.md).
+- Reviewed workflow integration: 6 further JVM behavior cases plus 3 actual ViewModel/Room integration cases; 310 tests pass, full lint/debug gate and unchanged schemas. Normal/diversion forms use real prospective effects and exact reviewed application; observer recovery and retry/form identity protections remain intact. See [MILESTONE_10_BACKEND.md](MILESTONE_10_BACKEND.md).
 
 ## Design handoff
 

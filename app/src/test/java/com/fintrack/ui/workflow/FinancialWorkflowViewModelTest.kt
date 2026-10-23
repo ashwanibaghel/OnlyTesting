@@ -27,48 +27,52 @@ class FinancialWorkflowViewModelTest {
     private val sessions = TestSessions()
     private val ledger = TestLedger(sessions)
     private val planning = TestPlanning(sessions)
+    private val reviews = TestReviews()
     private lateinit var vm: FinancialWorkflowViewModel
     private fun m(value: Long) = Money(value, INR)
     private fun income(amount: Long = 100) = LedgerAction.Post(TransactionDraft.Income("bank", m(amount), "Salary", today))
+    private fun scenario(block: suspend TestScope.() -> Unit) = runTest {
+        try { block() } finally { store.clear(); runCurrent() }
+    }
     @Before fun setup() {
         Dispatchers.setMain(StandardTestDispatcher())
-        vm = FinancialWorkflowViewModel(ledger, sessions, planning); store.put("workflow", vm)
+        vm = FinancialWorkflowViewModel(ledger, sessions, planning, reviews); store.put("workflow", vm)
     }
     @After fun teardown() { store.clear(); Dispatchers.resetMain() }
     private fun TestScope.review(operation: FinancialOperation = first, amount: Long = 100): ReviewedFinancialCommand {
-        runCurrent(); vm.prepare(operation) { income(amount) }; return requireNotNull(vm.state.value.review)
+        runCurrent(); vm.prepare(operation) { income(amount) }; runCurrent(); return requireNotNull(vm.state.value.review)
     }
     private fun TestScope.failWrite(operation: FinancialOperation = first): FailedFinancialCommand {
         val review = review(operation); ledger.failExecute = true
         vm.confirm(operation, review.token); runCurrent(); return requireNotNull(vm.state.value.retry)
     }
 
-    @Test fun failedWriteThenInvalidInputCannotRetryPreviousOperation() = runTest {
+    @Test fun failedWriteThenInvalidInputCannotRetryPreviousOperation() = scenario {
         val failed = failWrite()
         vm.prepare(second) { Money.parse("invalid", INR); income() }
         assertNotNull(vm.state.value.commandError); assertNull(vm.state.value.retry)
         vm.retry(first, failed.command.id); runCurrent(); assertEquals(1, ledger.attempts.size)
     }
-    @Test fun failedWriteThenFailedDiversionPreviewDoesNotExposeOldRetry() = runTest {
+    @Test fun failedWriteThenFailedDiversionPreviewDoesNotExposeOldRetry() = scenario {
         val failed = failWrite(); planning.failPreview = true
         vm.prepareDiversion(second, "goal", null, m(50), "New diversion"); runCurrent()
         assertNotNull(vm.state.value.commandError); assertNull(vm.state.value.retry); assertNull(vm.state.value.review)
         vm.retry(first, failed.command.id); runCurrent(); assertEquals(1, ledger.attempts.size)
     }
-    @Test fun editedFormRejectsOldReviewEvenIfValuesAreChangedBack() = runTest {
-        val old = review(); vm.edited(first); vm.prepare(first) { income() }
+    @Test fun editedFormRejectsOldReviewEvenIfValuesAreChangedBack() = scenario {
+        val old = review(); vm.edited(first); vm.prepare(first) { income() }; runCurrent()
         val current = vm.state.value.review!!
         vm.confirm(first, old.token); runCurrent(); assertTrue(ledger.attempts.isEmpty())
         vm.confirm(first, current.token); runCurrent(); assertEquals(1, ledger.postings)
     }
-    @Test fun switchingFormRejectsPreviousReviewAndRetryCallbacks() = runTest {
+    @Test fun switchingFormRejectsPreviousReviewAndRetryCallbacks() = scenario {
         val failed = failWrite(); ledger.failExecute = false
         val current = review(second)
         vm.retry(first, failed.command.id); vm.confirm(first, current.token); runCurrent()
         assertEquals(1, ledger.attempts.size)
         vm.confirm(second, current.token); runCurrent(); assertEquals(1, ledger.postings)
     }
-    @Test fun successfulRetryAfterLostAcknowledgementUsesOriginalCommandAndPostsOnce() = runTest {
+    @Test fun successfulRetryAfterLostAcknowledgementUsesOriginalCommandAndPostsOnce() = scenario {
         val reviewed = review(); ledger.failAcknowledgementOnce = true
         vm.confirm(first, reviewed.token); runCurrent()
         val failed = vm.state.value.retry!!
@@ -77,18 +81,18 @@ class FinancialWorkflowViewModelTest {
         assertEquals(2, ledger.attempts.size); assertEquals(ledger.attempts[0], ledger.attempts[1])
         assertEquals(1, ledger.postings); assertNull(vm.state.value.retry); assertNotNull(vm.state.value.saved[first.key])
     }
-    @Test fun rapidConfirmCallbacksConsumeReviewBeforeCoroutineStarts() = runTest {
+    @Test fun rapidConfirmCallbacksConsumeReviewBeforeCoroutineStarts() = scenario {
         val reviewed = review(); vm.confirm(first, reviewed.token); vm.confirm(first, reviewed.token)
         assertTrue(vm.state.value.busy); assertNull(vm.state.value.review)
         runCurrent(); assertEquals(1, ledger.attempts.size); assertEquals(1, ledger.postings)
     }
-    @Test fun successfulFormCannotBePreparedAgainAfterUnrelatedOperation() = runTest {
+    @Test fun successfulFormCannotBePreparedAgainAfterUnrelatedOperation() = scenario {
         val one = review(); vm.confirm(first, one.token); runCurrent()
         val two = review(second); vm.confirm(second, two.token); runCurrent()
         vm.prepare(first) { income() }; runCurrent()
         assertNull(vm.state.value.review); assertEquals(2, ledger.postings)
     }
-    @Test fun acknowledgedSuccessWithRefreshFailureRetainsReceiptAndPreventsResubmission() = runTest {
+    @Test fun acknowledgedSuccessWithRefreshFailureRetainsReceiptAndPreventsResubmission() = scenario {
         val reviewed = review(); sessions.failSnapshotWhenPosted = true
         vm.confirm(first, reviewed.token); runCurrent()
         assertNotNull(vm.state.value.saved[first.key]); assertNull(vm.state.value.retry)
@@ -96,36 +100,36 @@ class FinancialWorkflowViewModelTest {
         vm.prepare(first) { income() }; vm.confirm(first, reviewed.token); vm.retry(first, first.key); runCurrent()
         assertEquals(1, ledger.attempts.size); assertEquals(1, ledger.postings)
     }
-    @Test fun changedBookRevisionInvalidatesReview() = runTest {
+    @Test fun changedBookRevisionInvalidatesReview() = scenario {
         val reviewed = review(); sessions.revise(1); runCurrent()
         assertNull(vm.state.value.review); vm.confirm(first, reviewed.token); runCurrent()
         assertTrue(ledger.attempts.isEmpty())
     }
-    @Test fun changedBookDateInvalidatesReviewWithoutFinancialRevision() = runTest {
+    @Test fun changedBookDateInvalidatesReviewWithoutFinancialRevision() = scenario {
         val reviewed = review(); sessions.redate(today.plusDays(1)); runCurrent()
         assertNull(vm.state.value.review); vm.confirm(first, reviewed.token); runCurrent()
         assertTrue(ledger.attempts.isEmpty())
     }
-    @Test fun freshPreflightRejectsUnobservedDateChangeWithoutRetryableFinancialCommand() = runTest {
+    @Test fun freshPreflightRejectsUnobservedDateChangeWithoutRetryableFinancialCommand() = scenario {
         val reviewed = review(); sessions.redate(today.plusDays(1), publish = false)
         vm.confirm(first, reviewed.token); runCurrent()
         assertTrue(ledger.attempts.isEmpty()); assertNull(vm.state.value.retry)
         assertNotNull(vm.state.value.commandError)
     }
-    @Test fun freshPreflightRejectsUnobservedRevisionInsteadOfRebasingUserCommand() = runTest {
+    @Test fun freshPreflightRejectsUnobservedRevisionInsteadOfRebasingUserCommand() = scenario {
         val reviewed = review(); sessions.revise(2, publish = false)
         vm.confirm(first, reviewed.token); runCurrent()
         assertTrue(ledger.attempts.isEmpty()); assertNull(vm.state.value.retry)
         assertEquals(2L, vm.state.value.session!!.revision)
     }
-    @Test fun lateDiversionPreviewCannotRestoreReviewAfterEditing() = runTest {
+    @Test fun lateDiversionPreviewCannotRestoreReviewAfterEditing() = scenario {
         runCurrent(); planning.previewGate = CompletableDeferred()
         vm.prepareDiversion(first, "goal", null, m(50), "Travel"); runCurrent()
         assertTrue(vm.state.value.busy); vm.edited(second)
         planning.previewGate!!.complete(Unit); runCurrent()
         assertNull(vm.state.value.review); assertNull(vm.state.value.retry); assertFalse(vm.state.value.busy)
     }
-    @Test fun diversionReviewUsesExactConsentValuesAndRevision() = runTest {
+    @Test fun diversionReviewUsesExactConsentValuesAndRevision() = scenario {
         runCurrent(); vm.prepareDiversion(first, "goal", "other", m(50), "Reviewed diversion"); runCurrent()
         val reviewed = vm.state.value.review!!
         val action = (reviewed.command.action as LedgerAction.Plan).operation as PlanningAction.Move
@@ -134,7 +138,7 @@ class FinancialWorkflowViewModelTest {
         vm.confirm(first, reviewed.token); runCurrent()
         assertEquals(reviewed.command, ledger.attempts.single())
     }
-    @Test fun observerFailureCannotUnlockWriteOrExposePreviousRetry() = runTest {
+    @Test fun observerFailureCannotUnlockWriteOrExposePreviousRetry() = scenario {
         val reviewed = review(); ledger.executeGate = CompletableDeferred()
         vm.confirm(first, reviewed.token); runCurrent(); sessions.failObservation(); runCurrent()
         assertTrue(vm.state.value.busy); assertNotNull(vm.state.value.storageError)
@@ -142,67 +146,108 @@ class FinancialWorkflowViewModelTest {
         assertEquals(1, ledger.attempts.size)
         ledger.executeGate!!.complete(Unit); runCurrent(); assertFalse(vm.state.value.busy); assertEquals(1, ledger.postings)
     }
-    @Test fun lateWriteFailureAfterEditingCannotOfferOldOperationAsRetry() = runTest {
+    @Test fun lateWriteFailureAfterEditingCannotOfferOldOperationAsRetry() = scenario {
         val reviewed = review(); ledger.executeGate = CompletableDeferred(); ledger.failExecute = true
         vm.confirm(first, reviewed.token); runCurrent(); vm.edited(second)
         ledger.executeGate!!.complete(Unit); runCurrent()
         assertNull(vm.state.value.retry); assertNull(vm.state.value.commandError); assertFalse(vm.state.value.busy)
     }
-    @Test fun mutableExpenseSplitsAreCapturedAtReviewTime() = runTest {
+    @Test fun mutableExpenseSplitsAreCapturedAtReviewTime() = scenario {
         runCurrent(); val splits = mutableListOf(Split("Food", m(100)))
         vm.prepare(first) { LedgerAction.Post(TransactionDraft.Expense("bank", m(100), splits, today)) }
-        val reviewed = vm.state.value.review!!; splits[0] = Split("Other", m(100))
+        splits[0] = Split("Other", m(100)); runCurrent(); val reviewed = vm.state.value.review!!
         vm.confirm(first, reviewed.token); runCurrent()
         val draft = (ledger.attempts.single().action as LedgerAction.Post).draft as TransactionDraft.Expense
         assertEquals("Food", draft.splits.single().category)
     }
-    @Test fun mutableScheduleExceptionsAreCapturedAtReviewTime() = runTest {
+    @Test fun mutableScheduleExceptionsAreCapturedAtReviewTime() = scenario {
         runCurrent(); val exceptions = mutableSetOf(today.plusMonths(1))
         vm.prepare(first) { LedgerAction.Schedule(ScheduleAction.Define(ScheduledRule("rule", "Income",
             (income().draft as TransactionDraft.Income), Recurrence(today, Frequency.MONTHLY, exceptions = exceptions), true))) }
-        val reviewed = vm.state.value.review!!; exceptions.clear()
+        exceptions.clear(); runCurrent(); val reviewed = vm.state.value.review!!
         vm.confirm(first, reviewed.token); runCurrent()
         val action = (ledger.attempts.single().action as LedgerAction.Schedule).operation as ScheduleAction.Define
         assertEquals(setOf(today.plusMonths(1)), action.rule.recurrence.exceptions)
     }
-    @Test fun olderObserverEmissionCannotRegressAcceptedFinancialRevision() = runTest {
+    @Test fun olderObserverEmissionCannotRegressAcceptedFinancialRevision() = scenario {
         review(); sessions.revise(3); runCurrent(); sessions.publish(session(1)); runCurrent()
         assertEquals(3L, vm.state.value.session!!.revision)
     }
-    @Test fun retainedFormIdentityAcrossViewModelRecreationCannotPostTwice() = runTest {
+    @Test fun retainedFormIdentityAcrossViewModelRecreationCannotPostTwice() = scenario {
         val reviewed = review(); ledger.failAcknowledgementOnce = true
         vm.confirm(first, reviewed.token); runCurrent(); assertEquals(1, ledger.postings)
-        store.clear(); vm = FinancialWorkflowViewModel(ledger, sessions, planning); store.put("recreated", vm)
-        val again = review(); assertEquals(first.key, again.command.id)
-        vm.confirm(first, again.token); runCurrent()
-        assertEquals(1, ledger.postings); assertNotNull(vm.state.value.commandError)
+        store.clear(); vm = FinancialWorkflowViewModel(ledger, sessions, planning, reviews); store.put("recreated", vm)
+        runCurrent(); vm.prepare(first) { income() }; runCurrent()
+        assertNull(vm.state.value.review); assertEquals(1, ledger.postings); assertNotNull(vm.state.value.commandError)
     }
-    @Test fun observerStorageFailurePreventsReviewUntilReloadSucceeds() = runTest {
+    @Test fun observerStorageFailurePreventsReviewUntilReloadSucceeds() = scenario {
         runCurrent(); sessions.failObservation(); runCurrent()
         vm.prepare(first) { income() }
         assertNull(vm.state.value.review); assertNull(vm.state.value.retry)
         assertNotNull(vm.state.value.storageError)
-        sessions.publish(sessions.current); vm.reload(); runCurrent(); vm.prepare(first) { income() }
+        sessions.publish(sessions.current); vm.reload(); runCurrent(); vm.prepare(first) { income() }; runCurrent()
         assertNotNull(vm.state.value.review); assertNull(vm.state.value.storageError)
     }
-    @Test fun pendingPeriodIsPreparedBeforeNewFinancialReview() = runTest {
+    @Test fun pendingPeriodIsPreparedBeforeNewFinancialReview() = scenario {
         runCurrent(); sessions.pendingPeriod(); runCurrent()
         assertEquals(1, sessions.preparations); assertNull(vm.state.value.session!!.pendingRolloverThrough)
-        vm.prepare(first) { income() }; assertNotNull(vm.state.value.review)
+        vm.prepare(first) { income() }; runCurrent(); assertNotNull(vm.state.value.review)
         assertEquals(1L, vm.state.value.review!!.command.expectedRevision); assertEquals(0, ledger.postings)
     }
-    @Test fun failedPeriodPreparationRetainsObservationAndPreventsUnpreparedReview() = runTest {
+    @Test fun failedPeriodPreparationRetainsObservationAndPreventsUnpreparedReview() = scenario {
         runCurrent(); sessions.failPreparation = true; sessions.pendingPeriod(); runCurrent()
         assertNotNull(vm.state.value.periodError); assertNull(vm.state.value.storageError)
         vm.prepare(first) { income() }; assertNull(vm.state.value.review); assertNull(vm.state.value.retry)
         sessions.failPreparation = false; vm.reload(); runCurrent()
         assertNull(vm.state.value.periodError); assertNull(vm.state.value.session!!.pendingRolloverThrough)
-        vm.prepare(first) { income() }; assertNotNull(vm.state.value.review)
+        vm.prepare(first) { income() }; runCurrent(); assertNotNull(vm.state.value.review)
     }
-    @Test fun preflightReadFailureDoesNotExposeAnUnattemptedFinancialCommandForRetry() = runTest {
+    @Test fun preflightReadFailureDoesNotExposeAnUnattemptedFinancialCommandForRetry() = scenario {
         val reviewed = review(); sessions.failAllSnapshots = true
         vm.confirm(first, reviewed.token); runCurrent()
         assertTrue(ledger.attempts.isEmpty()); assertNull(vm.state.value.retry); assertNotNull(vm.state.value.commandError)
+    }
+
+    @Test fun reviewStateExposesRepositoryEffectsAndAppliesExactReviewedObject() = scenario {
+        val reviewed = review()
+        assertEquals(reviewed.command, reviewed.effect.command)
+        assertEquals(0L, reviewed.effect.before.revision); assertEquals(1L, reviewed.effect.after.revision)
+        vm.confirm(first, reviewed.token); runCurrent()
+        assertEquals(reviewed.effect, reviews.applications.single())
+    }
+    @Test fun lateGenericPreviewCannotRestoreEditedFormOrStartFinancialWrite() = scenario {
+        runCurrent(); reviews.previewGate = CompletableDeferred()
+        vm.prepare(first) { income() }; runCurrent(); assertTrue(vm.state.value.busy)
+        vm.edited(second); reviews.previewGate!!.complete(Unit); runCurrent()
+        assertNull(vm.state.value.review); assertNull(vm.state.value.retry); assertFalse(vm.state.value.busy)
+        assertTrue(ledger.attempts.isEmpty())
+    }
+    @Test fun genericPreviewFailureAfterFailedWriteCannotExposePreviousRetry() = scenario {
+        val failed = failWrite(); reviews.failPreview = true
+        vm.prepare(second) { income(200) }; runCurrent()
+        assertNotNull(vm.state.value.commandError); assertNull(vm.state.value.review); assertNull(vm.state.value.retry)
+        vm.retry(first, failed.command.id); runCurrent(); assertEquals(1, ledger.attempts.size)
+    }
+    @Test fun rapidPrepareCallbacksStartOnlyOneFinancialPreview() = scenario {
+        runCurrent(); reviews.previewGate = CompletableDeferred()
+        vm.prepare(first) { income() }; vm.prepare(second) { income(200) }; runCurrent()
+        assertEquals(1, reviews.previews.size); assertTrue(vm.state.value.busy)
+        reviews.previewGate!!.complete(Unit); runCurrent()
+        assertEquals(first, vm.state.value.review!!.operation); assertTrue(ledger.attempts.isEmpty())
+    }
+    @Test fun unchangedFailedFormRecoversSavedReceiptWithoutNewFinancialPosting() = scenario {
+        val reviewed = review(); ledger.failAcknowledgementOnce = true
+        vm.confirm(first, reviewed.token); runCurrent(); assertNotNull(vm.state.value.retry)
+        sessions.publish(sessions.current); runCurrent()
+        vm.prepare(first) { income() }; runCurrent()
+        assertNull(vm.state.value.review); assertNull(vm.state.value.retry); assertNotNull(vm.state.value.saved[first.key])
+        assertEquals(reviewed.command, reviews.previews.last()); assertEquals(1, ledger.postings)
+    }
+    @Test fun observerAutomaticallyRecoversAndResumesFutureFinancialUpdates() = scenario {
+        runCurrent(); sessions.failObservation(); runCurrent(); assertNotNull(vm.state.value.storageError)
+        sessions.publish(sessions.current); advanceTimeBy(1000); runCurrent()
+        assertNull(vm.state.value.storageError)
+        sessions.revise(2); runCurrent(); assertEquals(2L, vm.state.value.session!!.revision)
     }
 
     private fun session(revision: Long = 0, date: LocalDate = today): FinanceSession {
@@ -225,7 +270,9 @@ class FinancialWorkflowViewModelTest {
         fun redate(date: LocalDate, publish: Boolean = true) { current = current.copy(planning = current.planning.copy(asOf = date)); if (publish) publish(current) }
         fun pendingPeriod() { current = current.copy(pendingRolloverThrough = YearMonth.from(today)); publish(current) }
         override suspend fun snapshot(bookId: String): FinanceSession { check(!failAllSnapshots && !(posted && failSnapshotWhenPosted)) { "Refresh failed" }; return current }
-        override fun observe(bookId: String) = events.map { requireNotNull(it) { "Observation failed" } }
+        override fun observe(bookId: String): Flow<FinanceSession> = flow {
+            emit(current); emitAll(events.map { requireNotNull(it) { "Observation failed" } })
+        }.distinctUntilChanged()
         override suspend fun prepareCurrentPeriod(bookId: String): CommandReceipt? {
             check(!failPreparation) { "Period preparation failed" }; preparations++
             current = current.copy(pendingRolloverThrough = null); revise(current.revision + 1)
@@ -241,6 +288,11 @@ class FinancialWorkflowViewModelTest {
         var failExecute = false
         var failAcknowledgementOnce = false
         var executeGate: CompletableDeferred<Unit>? = null
+        fun saved(command: LedgerCommand): CommandReceipt? {
+            val previous = completed[command.id] ?: return null
+            require(previous.first == command) { "Command key already used with a different payload" }
+            return previous.second
+        }
         override suspend fun initializeBook(bookId: String, currency: CurrencySpec) = Unit
         override suspend fun execute(command: LedgerCommand): CommandReceipt {
             attempts += command; executeGate?.await(); check(!failExecute) { "Write failed" }
@@ -256,6 +308,30 @@ class FinancialWorkflowViewModelTest {
         override fun observe(bookId: String) = flowOf(sessions.current.planning.ledger)
         override suspend fun history(bookId: String, filter: HistoryFilter): List<HistoryEntry> = error("Not called")
         override suspend fun reconcile(bookId: String, accountId: String, date: LocalDate, statement: Money, basis: BalanceBasis): ReconciliationPreview = error("Not called")
+    }
+    private inner class TestReviews : FinancialReviewRepository {
+        val previews = mutableListOf<LedgerCommand>()
+        val applications = mutableListOf<FinancialCommandReview>()
+        var previewGate: CompletableDeferred<Unit>? = null
+        var failPreview = false
+        var previousReceipt: CommandReceipt? = null
+        private fun position(): ReviewedFinancialPosition {
+            val current = sessions.current; val plan = current.planning; val actual = plan.ledger
+            return ReviewedFinancialPosition(current.revision, current.today, actual.accounts, actual.liquid,
+                actual.income, actual.expense, actual.history.size, plan.profile, emptyList(), emptyList(),
+                plan.reservations, plan.safeToSpend, plan.uncoveredObligations, plan.goalFunding, plan.goalCollisions)
+        }
+        override suspend fun preview(command: LedgerCommand): FinancialCommandReview {
+            previews += command; previewGate?.await(); check(!failPreview) { "Command effect preview failed" }
+            val existing = previousReceipt ?: ledger.saved(command)
+            val before = position()
+            return FinancialCommandReview(command, "explicit-test-fixture", before,
+                if (existing == null) before.copy(revision = before.revision + 1) else before, existing)
+        }
+        override suspend fun apply(review: FinancialCommandReview): CommandReceipt {
+            applications += review
+            return ledger.execute(review.command)
+        }
     }
     private inner class TestPlanning(private val sessions: TestSessions) : PlanningRepository {
         var failPreview = false
