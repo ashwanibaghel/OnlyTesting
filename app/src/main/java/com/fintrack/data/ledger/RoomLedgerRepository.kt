@@ -11,6 +11,7 @@ import java.time.YearMonth
 import com.fintrack.engine.Money
 import com.fintrack.engine.Posting
 import com.fintrack.engine.sumMoney
+import com.fintrack.engine.toLongChecked
 import com.fintrack.engine.validateJournal
 import java.math.BigInteger
 import java.time.Clock
@@ -238,7 +239,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
 
     private suspend fun account(book: String, id: String, allowArchived: Boolean = false): AccountEntity {
         identifier(id)
-        val account = requireNotNull(dao.accounts(book).firstOrNull { it.id == id }) { "Account is missing or belongs to another book" }
+        val account = requireNotNull(dao.account(book, id)) { "Account is missing or belongs to another book" }
         require(allowArchived || !account.archived) { "Account is archived. Explicitly unarchive before posting" }
         require(account.currencyCode == "INR") { "Account currency mismatch" }
         return account
@@ -246,7 +247,7 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
 
     private suspend fun control(book: String, role: LedgerRole, name: String): String {
         label(name)
-        val existing = dao.ledgerAccounts(book).firstOrNull { it.role == role.name && it.name == name }
+        val existing = dao.control(book, role.name, name)
         if (existing != null) return existing.id
         val newId = id()
         dao.insertLedgerAccount(LedgerAccountEntity(newId, book, null, role.name, name))
@@ -322,26 +323,34 @@ class RoomLedgerRepository(private val db: FinTrackDatabase, private val clock: 
         val controls = dao.ledgerAccounts(bookId).associateBy { it.id }
         val clearing = dao.clearings(bookId).associateBy { it.entryId }
         val reversed = journals.filter { it.reversalOf != null }.associateBy { it.reversalOf }
+        val posted = mutableMapOf<String, BigInteger>(); val cleared = mutableMapOf<String, BigInteger>()
+        var income = BigInteger.ZERO; var expense = BigInteger.ZERO
         val history = journals.map { journal ->
             val date = LocalDate.parse(journal.effectiveDate)
+            val clearedDate = if (journal.clearing == "CLEARED") date else clearing[journal.id]?.let { LocalDate.parse(it.clearedDate) }
             HistoryEntry(journal.id, journal.kind, date, journal.createdAt, journal.memo, journal.reason, journal.reversalOf,
-                reversed[journal.id]?.id, if (journal.clearing == "CLEARED") date else clearing[journal.id]?.let { LocalDate.parse(it.clearedDate) },
+                reversed[journal.id]?.id, clearedDate,
                 legs[journal.id].orEmpty().map { leg ->
                     val ledger = controls.getValue(leg.ledgerAccountId)
-                    HistoryLeg(ledger.id, ledger.name, LedgerRole.valueOf(ledger.role), money(leg.minor))
+                    val role = LedgerRole.valueOf(ledger.role); val amount = BigInteger.valueOf(leg.minor)
+                    posted[ledger.id] = (posted[ledger.id] ?: BigInteger.ZERO) + amount
+                    when (role) {
+                        LedgerRole.INCOME -> income -= amount
+                        LedgerRole.EXPENSE -> expense += amount
+                        LedgerRole.ASSET -> if (clearedDate != null) cleared[ledger.id] = (cleared[ledger.id] ?: BigInteger.ZERO) + amount
+                        LedgerRole.EQUITY -> Unit
+                    }
+                    HistoryLeg(ledger.id, ledger.name, role, money(leg.minor))
                 })
         }
         // Also validate control account totals, not only displayed asset balances.
-        history.flatMap { it.legs }.groupBy { it.accountId }.values.forEach { sumMoney(it.map { leg -> leg.amount }, INR) }
+        posted.values.forEach { it.toLongChecked() }
         val accounts = dao.accounts(bookId).map { account ->
-            val accountLegs = history.flatMap { entry -> entry.legs.filter { it.accountId == account.id } }
-            val clearedLegs = history.filter { it.clearedDate != null }.flatMap { entry -> entry.legs.filter { it.accountId == account.id } }
             AccountBalance(account.id, account.name, AccountKind.valueOf(account.kind), account.archived,
-                sumMoney(accountLegs.map { it.amount }, INR), sumMoney(clearedLegs.map { it.amount }, INR))
+                money((posted[account.id] ?: BigInteger.ZERO).toLongChecked()), money((cleared[account.id] ?: BigInteger.ZERO).toLongChecked()))
         }
-        val income = sumMoney(history.flatMap { it.legs }.filter { it.role == LedgerRole.INCOME }.map { -it.amount }, INR)
-        val expense = sumMoney(history.flatMap { it.legs }.filter { it.role == LedgerRole.EXPENSE }.map { it.amount }, INR)
-        return LedgerSnapshot(book.revision, accounts, history, sumMoney(accounts.filter { it.liquid }.map { it.posted }, INR), income, expense)
+        return LedgerSnapshot(book.revision, accounts, history, sumMoney(accounts.filter { it.liquid }.map { it.posted }, INR),
+            money(income.toLongChecked()), money(expense.toLongChecked()))
     }
 
     override fun observe(bookId: String): Flow<LedgerSnapshot> = dao.revision(bookId).map { snapshot(bookId) }
