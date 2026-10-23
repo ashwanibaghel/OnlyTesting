@@ -19,3 +19,5 @@ Fourteen native Room tests pass in the focused run: original-template restoratio
 The full Windows/JDK 17 gate cleaned both test outputs and passed in 3m 48s: **339 tests** (85 finance-engine JVM, 198 Room/NATIVE SQLite, 7 codec JVM and 49 pure ViewModel), zero failures/errors/skips. All prior 325 CI test names are retained. Lint reports zero errors and 35 existing warnings; debug assembly passes. The generated schema was structurally compared to V4 after accounting for the reviewed index/version/identity change; no other schema changes were found. Local log: `.tools/phase1-unlink-gate.log`.
 
 No physical-device/emulator/Compose testing or Phase 1 completion is claimed. Investment return/ownership management, reports/performance, backup/security/privacy/reminders and final approved consumer UI remain outstanding.
+
+Commit `392e6a4e00514e5e2863f77b5285d126f52d746c` also passes [CI run 39883623277](https://github.com/ashwanibaghel/OnlyTesting/actions/runs/39883623277). Downloaded report SHA-256 `d31513b3fd5cc590d35649bb50e65c5d4f1ef00601b5453be4030c7d98bce474` and independently parsed JUnit XML confirm 339 tests with zero failures/errors/skips.

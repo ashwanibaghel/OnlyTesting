@@ -13,6 +13,8 @@ import com.fintrack.data.local.FinTrackMigrations
 import com.fintrack.data.ledger.RoomLedgerRepository
 import com.fintrack.data.ledger.RoomFinancialReviewRepository
 import com.fintrack.domain.ledger.FinancialReviewRepository
+import com.fintrack.domain.ledger.HistoryRepository
+import com.fintrack.data.ledger.RoomHistoryRepository
 import com.fintrack.domain.ledger.LedgerRepository
 import com.fintrack.domain.planning.PlanningRepository
 import com.fintrack.data.planning.RoomPlanningRepository
@@ -49,6 +51,10 @@ object StorageModule {
     @Singleton
     fun financialReviews(database: FinTrackDatabase, ledger: LedgerRepository): FinancialReviewRepository =
         RoomFinancialReviewRepository(database, ledger, Clock.systemDefaultZone())
+
+    @Provides
+    @Singleton
+    fun history(database: FinTrackDatabase): HistoryRepository = RoomHistoryRepository(database)
 
     @Provides
     @Singleton
